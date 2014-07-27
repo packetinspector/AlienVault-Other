@@ -13,10 +13,11 @@ use vars qw/ %opt /;
 #You may want to extend this directory lower to a specific collector.  You probably don't want to run this against netflow from perimeter for instance
 my $nfdir = '/var/cache/nfdump/flows/live';
 #Nfdump notation: 25 Megs
-my $min_download_size = '+50M'; #in-line with alert hash below
-my $min_upload_size = '+10M'; #in-line with alert hash below
+my $min_download_size = '+10M'; #in-line with alert hash below
+my $min_upload_size = '+5M'; #in-line with alert hash below
 #Alert Thresholds (if you change these remake the SQL...)
-my %download_alerts = { 25 => (100, 'Network Download greater than 25M'), 100 => (101, 'Network Download greater than 100M') };
+#[num_of_bytes] => ([sid], [message])
+my %download_alerts = { 25 => (100, 'Network Download greater than 25M'), 100000000 => (101, 'Network Download greater than 100M') };
 my %upload_alerts = { 25 => (200, 'Network Upload greater than 25M'), 100 => (201, 'Network Upload greater than 100M') };
 #Polling Interval - Copy of Watchdog in minutes
 my $pi = 3;
@@ -59,11 +60,11 @@ my $src_filter = join(' or src net ', @netblocks);
 print "DST: $dst_filter \nSRC: $src_filter \n" if $debug;
 
 #Make a polling date for nfdump to check
-my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( minutes => $pi)->strftime("%Y/%m/%d.%H:%M:%S");
+my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( hours => 1)->strftime("%Y/%m/%d.%H:%M:%S");
 my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
 
-my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_download_size' -q -n 100 -o extended -s record/bytes '(dst net $dst_filter) and not (src net $src_filter)'";
-my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q -n 100 -o extended -s record/bytes '(src net $src_filter) and not (dst net $dst_filter)'";
+my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_download_size' -q -n 100 -o extended -s record/bytes '(dst net $dst_filter) and not (src net $src_filter) and (flags F or flags P)'";
+my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q -n 100 -o extended -s record/bytes '(src net $src_filter) and not (dst net $dst_filter) and (flags F or flags P)'";
 
 print "Download Command: '$nf_dump_cmd_download'\n" if $debug;
 print "Upload Command: '$nf_dump_cmd_upload'\n" if $debug;
