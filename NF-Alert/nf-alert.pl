@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 # NF-Alert
 # Makes events for network traffic
+# Perhaps this will do more.  Right now it looks for large uploads and downloads
 use DateTime;
 use Getopt::Std;
 use Sys::Syslog;
@@ -12,10 +13,11 @@ use vars qw/ %opt /;
 #You may want to extend this directory lower to a specific collector.  You probably don't want to run this against netflow from perimeter for instance
 my $nfdir = '/var/cache/nfdump/flows/live';
 #Nfdump notation: 25 Megs
-my $min_session_size = '+25M'; #in-line with alert hash below
-#Alert Thresholds
-my %alerts = { 25 => (1, 'Network %s greater than 25M'), 100 => (2, 'Network %s greater than 100M') };
-my @types = ('Download' , 'Upload');
+my $min_download_size = '+50M'; #in-line with alert hash below
+my $min_upload_size = '+10M'; #in-line with alert hash below
+#Alert Thresholds (if you change these remake the SQL...)
+my %download_alerts = { 25 => (100, 'Network Download greater than 25M'), 100 => (101, 'Network Download greater than 100M') };
+my %upload_alerts = { 25 => (200, 'Network Upload greater than 25M'), 100 => (201, 'Network Upload greater than 100M') };
 #Polling Interval - Copy of Watchdog in minutes
 my $pi = 3;
 #For plugin generation
@@ -37,6 +39,12 @@ if ($opt{'s'}) {
 	exit;
 }
 
+if ($opt{'p'}) {
+	#No witty comment here
+	make_plugin();
+	exit;
+}
+
 #Grab networks in use
 my $networks = `grep networks= /etc/ossim/ossim_setup.conf`;
 chomp($networks);
@@ -54,8 +62,8 @@ print "DST: $dst_filter \nSRC: $src_filter \n" if $debug;
 my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( minutes => $pi)->strftime("%Y/%m/%d.%H:%M:%S");
 my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
 
-my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_session_size' -q -n 100 -o extended -s record/bytes '(dst net $dst_filter) and not (src net $src_filter)'";
-my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_session_size' -q -n 100 -o extended -s record/bytes '(src net $src_filter) and not (dst net $dst_filter)'";
+my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_download_size' -q -n 100 -o extended -s record/bytes '(dst net $dst_filter) and not (src net $src_filter)'";
+my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q -n 100 -o extended -s record/bytes '(src net $src_filter) and not (dst net $dst_filter)'";
 
 print "Download Command: '$nf_dump_cmd_download'\n" if $debug;
 print "Upload Command: '$nf_dump_cmd_upload'\n" if $debug;
@@ -63,9 +71,6 @@ print "Upload Command: '$nf_dump_cmd_upload'\n" if $debug;
 print "Download: " . `$nf_dump_cmd_download` . "\n" if $debug;
 print "Upload: " . `$nf_dump_cmd_upload` . "\n" if $debug;
 
-foreach my $type (@types) {
-	print $type;
-}
 
 sub send_message {
 	my $log = shift;
@@ -89,8 +94,49 @@ sub make_sql () {
 	}
 }
 
+sub make_plugin () {
+	use File::Basename;
+	use Cwd 'abs_path';
+	my $script = basename($0);
+	my $fullpath = abs_path($0);
+	print <<EOF
+# Alienvault plugin
+# Author: js
+# Plugin $plugin_name id:$plugin_id version: 1.0
+[DEFAULT]
+plugin_id=$plugin_id
+
+[config]
+type=detector
+enable=yes
+
+source=log
+location=/var/log/$script.log
+
+# create log file if it does not exists,
+# otherwise stop processing this plugin
+create_file=false
+
+process=$script
+start=yes   ; launch plugin process when agent starts
+stop=no     ; shutdown plugin process when agent stops
+restart=yes  ; restart plugin process after each interval
+restart_interval=180
+startup=$fullpath
+shutdown=
+
+
+[simplematch]
+event_type=event
+regexp="(?P<sid>\d+)\,(?P<date>\d+),(?P<src_ip>\d+\.\d+\.\d+\.\d+)"
+plugin_sid={\$sid}
+date={normalize_date(\$date)}
+src_ip={\$src_ip}
+EOF
+}
+
 sub HELP_MESSAGE { print " -s Make the SQL for plugin: $0 -s | ossim-db\n -p Make the plugin: $0 -p > /etc/ossim/agent/plugins/$plugin_name.cfg\n -c Do the Check\n -v Be Verbose\n"; }
-sub VERSION_MESSAGE { print "NF-Alerty to SIEM\n"; }
+sub VERSION_MESSAGE { print "NF-Alert to SIEM\n"; }
 
 #/usr/bin/nfdump -R '/var/cache/nfdump/flows/live' -t '2014/07/26.15:17:00-2014/07/26.15:20:00' -o extended -s record/bytes '(dst net 192.168.0.0/16 or dst net 172.16.0.0/12 or dst net 10.0.0/8) and not (src net 192.168.0.0/16 or src net 172.16.0.0/12 or src net 10.0.0/8)' -L '+25M' -n 75
 #2014-07-26 15:14:02.114   106.609 TCP        199.96.57.7:443   ->   192.168.100.75:54556 .AP.SF 184    20117   30.2 M      188    2.3 M   1499     1
