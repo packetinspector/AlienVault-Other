@@ -10,6 +10,7 @@ use POSIX;
 #
 use vars qw/ %opt /;
 
+use Data::Dumper;
 ###########################################User Config Stuff
 
 #You may want to extend this directory lower to a specific collector.  You probably don't want to run this against netflow from perimeter for instance
@@ -20,11 +21,11 @@ my $min_upload_size = '+5M'; #in-line with alert hash below
 #Netflow window - Legnth of time to go back and look for transfers
 my $netflow_window = 24; #in hours
 #Alert Thresholds (if you change these remake the SQL...)
-#[num_of_bytes] => ([sid], [message])
-my %download_alerts = { 25 => (100, 'Network Download greater than 25M'), 100000000 => (101, 'Network Download greater than 100M') };
-my %upload_alerts = { 25 => (200, 'Network Upload greater than 25M'), 100 => (201, 'Network Upload greater than 100M') };
+#[num_of_bytes] => [ [sid], [message] ]
+my %download_alerts = ( 800000 => [99, 'Network Download greater than 8M'], 25000000 => [100, 'Network Download greater than 25M'], 100000000 => [101, 'Network Download greater than 100M'] );
+my %upload_alerts = ( 25 => [200, 'Network Upload greater than 25M'], 100 => [201, 'Network Upload greater than 100M'] );
 #Polling Interval - Copy of Watchdog in minutes
-my $pi = 15;
+my $pi = 45;
 #For plugin generation
 my $plugin_id = 90012;
 my $plugin_name = 'NF-Alert';
@@ -75,7 +76,7 @@ my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( hours => $
 my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
 
 my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_download_size' -q -N -n 100 -o '$nf_format' -s record/bytes '(dst net $dst_filter) and not (src net $src_filter) and (flags F)'";
-my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q N -n 100 -o '$nf_format' -s record/bytes '(src net $src_filter) and not (dst net $dst_filter) and (flags F)'";
+my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q -N -n 100 -o '$nf_format' -s record/bytes '(src net $src_filter) and not (dst net $dst_filter) and (flags F)'";
 
 print "Download Command: '$nf_dump_cmd_download'\n" if $debug;
 print "Upload Command: '$nf_dump_cmd_upload'\n" if $debug;
@@ -96,15 +97,58 @@ foreach (split(/\n/, $nf_dl_output)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;
+		#Loop looking a threshold...
+		foreach my $file_size (sort keys %download_alerts) {
+			#print $file_size;
+			if (int $fields[8] >= int $file_size ) {
+				print " Threshold exceeded. $fields[8] > $file_size. Alerting...\n" if $debug;
+				my $sid = $download_alerts{$file_size}[0];
+				my $output = $sid . "\;" . join("\;",@fields);
+				if ($debug) {
+					print "If I wasn't in debug I would send to syslog:\n$output\n";
+				} else {
+					send_message($output);
+				}
+				#Found one, we can stop now
+				last;
+			}
+		}
+				
 	}
 	
 }
 
+
+#Yes, I know it's lame to dupe the above.  But I want to do other stuff with uploads in the next version....
 foreach (split(/\n/, $nf_up_output)) {
 	chomp;
 	#skip if our data isn't present
 	next if !/\;/;
-	print "Parsing Uploads - line: $_ \n" if $debug;
+	my @fields = parse_line($_);
+	#Go through and look for ends within our polling interval
+	if ($fields[1] > ($current_time - $pi * 60)) {
+		print "Found Event within range,  " if $debug;
+		#Lets look at the bytes...
+		print "Number of bytes: $fields[8] \n" if $debug;
+		#Loop looking a threshold...
+		foreach my $file_size (sort keys %upload_alerts) {
+			#print $file_size;
+			if (int $fields[8] >= int $file_size ) {
+				print " Threshold exceeded. $fields[8] > $file_size. Alerting...\n" if $debug;
+				my $sid = $upload_alerts{$file_size}[0];
+				my $output = $sid . "\;" . join("\;",@fields);
+				if ($debug) {
+					print "If I wasn't in debug I would send to syslog:\n$output\n";
+				} else {
+					send_message($output);
+				}
+				#Found one, we can stop now
+				last;
+			}
+		}
+				
+	}
+	
 }
 
 sub parse_line() {
@@ -148,7 +192,7 @@ sub make_plugin () {
 	my $fullpath = abs_path($0);
 	print <<EOF
 # Alienvault plugin
-# Author: js
+# Author: js aka PacketInspector
 # Plugin $plugin_name id:$plugin_id version: 1.0
 [DEFAULT]
 plugin_id=$plugin_id
@@ -175,10 +219,19 @@ shutdown=
 
 [simplematch]
 event_type=event
-regexp="(?P<sid>\d+)\,(?P<date>\d+),(?P<src_ip>\d+\.\d+\.\d+\.\d+)"
+regexp="$plugin_name:\\s+(?P<sid>[^;]+);(?P<start_time>[^;]+);(?P<end_time>[^;]+);(?P<durration>[^;]+);(?P<proto>[^;]+);(?P<src_ip>[^;]+);(?P<dst_ip>[^;]+);(?P<src_port>[^;]+);(?P<dst_port>[^;]+);(?P<bytes>[^;]+);(?P<bpp>[^;]+);(?P<pps>[^;]+);(?P<flags>[^;]+)"
 plugin_sid={\$sid}
-date={normalize_date(\$date)}
+date={normalize_date(\$end_time)}
 src_ip={\$src_ip}
+dst_ip={\$dst_ip}
+src_port={\$src_port}
+dst_port={\$dst_port}
+protocol={\$proto}
+userdata1={\$bytes}
+userdata2={\$bpp}
+userdata3={\$pps}
+userdata4={\$flags}
+
 EOF
 }
 
