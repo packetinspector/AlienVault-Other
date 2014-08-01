@@ -75,3 +75,5 @@ I believe there is more statistical information we can derive from Netflow.  Up/
 Caveats
 -----------
 This things needs some testing.  Anyone with a high volume of netflow please tell me how it works for you.
+
+This script assumes you are using an AiO.  It would be trivial to make this work on other systems.
