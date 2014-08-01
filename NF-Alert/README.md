@@ -15,7 +15,7 @@ The SQL and Plugin file are all integrated into the script.
 
 Transcript of installation:
 
-```
+```bash
 alienvault:/usr/local/bin# ./nf-alert.pl --help
 NF-Alert to SIEM
  -s Make the SQL for plugin: ./nf-alert.pl -s | ossim-db
@@ -57,11 +57,17 @@ userdata4 | flags
 
 Other Notes
 -----------
-The threhsolds for the events are configurable.  You'll see the values and hashes at the top of the script.  If you modify them, just re-install the plugin.
+The thresholds for the events are configurable.  You'll see the values and hashes at the top of the script.  If you modify them, just re-install the plugin e.g.
+
+```perl
+my $min_download_size = '+8M'; #in-line with alert hash below
+my $min_upload_size = '+25M'; #in-line with alert hash below
+#Alert Thresholds (if you change these remake the SQL...)
+#[num_of_bytes] => [ [sid], [message] ]
+my %download_alerts = ( 800000 => [99, 'Network Download greater than 8M'], 25000000 => [100, 'Network Download greater than 25M'], 100000000 => [101, 'Network Download greater than 100M'] );
+my %upload_alerts = ( 25000000 => [200, 'Network Upload greater than 25M'], 100000000 => [201, 'Network Upload greater than 100M'] );
+```
 
 Future Versions
 -----------
 I believe there is more statistical information we can derive from Netflow.  Up/Down was simple, more rules to follow.
-
-
-
