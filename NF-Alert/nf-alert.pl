@@ -19,12 +19,12 @@ my $nfdir = '/var/cache/nfdump/flows/live';
 #Nfdump notation: 25 Megs
 my $min_download_size = '+8M'; #in-line with alert hash below
 my $min_upload_size = '+25M'; #in-line with alert hash below
-#Netflow window - Legnth of time to go back and look for transfers
-my $netflow_window = 2; #in hours
 #Alert Thresholds (if you change these remake the SQL...)
 #[num_of_bytes] => [ [sid], [message] ]
 my %download_alerts = ( 800000 => [99, 'Network Download greater than 8M'], 25000000 => [100, 'Network Download greater than 25M'], 100000000 => [101, 'Network Download greater than 100M'] );
 my %upload_alerts = ( 25000000 => [200, 'Network Upload greater than 25M'], 100000000 => [201, 'Network Upload greater than 100M'] );
+#Netflow window - Legnth of time to go back and look for transfers
+my $netflow_window = 2; #in hours
 #Polling Interval - Copy of Watchdog in minutes which seems fixed in ossim-agent
 my $pi = 3;
 #For plugin generation
@@ -94,7 +94,7 @@ foreach (split(/\n/, $nf_dl_output)) {
 	next if !/\;/;
 	my @fields = parse_line($_);
 	#Go through and look for ends within our polling interval
-	if ($fields[1] > ($current_time - ($pi * 60) - 300)) {
+	if ($fields[1] > ($current_time - ($pi * 60) - 400)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;
@@ -127,7 +127,7 @@ foreach (split(/\n/, $nf_up_output)) {
 	next if !/\;/;
 	my @fields = parse_line($_);
 	#Go through and look for ends within our polling interval
-	if ($fields[1] > ($current_time - ($pi * 60) - 300)) {
+	if ($fields[1] > ($current_time - ($pi * 60) - 400)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;

@@ -36,6 +36,7 @@ alienvault:/usr/local/bin#
 ```
 
 - Then enable the plug-in as normal.
+- You can run with the -v switch to see it in action, it will not make an event when run this way
 
 Use Cases
 -----------
@@ -53,6 +54,14 @@ userdata1 | bytes
 userdata2 | bpp
 userdata3 | pps
 userdata4 | flags
+
+Other Notes
+-----------
+The threhsolds for the events are configurable.  You'll see the values and hashes at the top of the script.  If you modify them, just re-install the plugin.
+
+Future Versions
+-----------
+I believe there is more statistical information we can derive from Netflow.  Up/Down was simple, more rules to follow.
 
 
 
