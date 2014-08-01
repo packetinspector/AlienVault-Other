@@ -15,7 +15,7 @@ The SQL and Plugin file are all integrated into the script.
 
 Transcript of installation:
 
-```Shell
+```ShellSession
 alienvault:/usr/local/bin# ./nf-alert.pl --help
 NF-Alert to SIEM
  -s Make the SQL for plugin: ./nf-alert.pl -s | ossim-db
