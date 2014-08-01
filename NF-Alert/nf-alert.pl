@@ -17,16 +17,16 @@ $Data::Dumper::Indent = 3;
 #You may want to extend this directory lower to a specific collector.  You probably don't want to run this against netflow from perimeter for instance
 my $nfdir = '/var/cache/nfdump/flows/live';
 #Nfdump notation: 25 Megs
-my $min_download_size = '+5M'; #in-line with alert hash below
-my $min_upload_size = '+5M'; #in-line with alert hash below
+my $min_download_size = '+8M'; #in-line with alert hash below
+my $min_upload_size = '+25M'; #in-line with alert hash below
 #Netflow window - Legnth of time to go back and look for transfers
-my $netflow_window = 24; #in hours
+my $netflow_window = 2; #in hours
 #Alert Thresholds (if you change these remake the SQL...)
 #[num_of_bytes] => [ [sid], [message] ]
 my %download_alerts = ( 800000 => [99, 'Network Download greater than 8M'], 25000000 => [100, 'Network Download greater than 25M'], 100000000 => [101, 'Network Download greater than 100M'] );
-my %upload_alerts = ( 25 => [200, 'Network Upload greater than 25M'], 100 => [201, 'Network Upload greater than 100M'] );
-#Polling Interval - Copy of Watchdog in minutes
-my $pi = 45;
+my %upload_alerts = ( 25000000 => [200, 'Network Upload greater than 25M'], 100000000 => [201, 'Network Upload greater than 100M'] );
+#Polling Interval - Copy of Watchdog in minutes which seems fixed in ossim-agent
+my $pi = 3;
 #For plugin generation
 my $plugin_id = 90012;
 my $plugin_name = 'NF-Alert';
@@ -94,7 +94,7 @@ foreach (split(/\n/, $nf_dl_output)) {
 	next if !/\;/;
 	my @fields = parse_line($_);
 	#Go through and look for ends within our polling interval
-	if ($fields[1] > ($current_time - $pi * 60)) {
+	if ($fields[1] > ($current_time - ($pi * 60) - 300)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;
@@ -127,7 +127,7 @@ foreach (split(/\n/, $nf_up_output)) {
 	next if !/\;/;
 	my @fields = parse_line($_);
 	#Go through and look for ends within our polling interval
-	if ($fields[1] > ($current_time - $pi * 60)) {
+	if ($fields[1] > ($current_time - ($pi * 60) - 300)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;
@@ -189,6 +189,7 @@ sub make_plugin () {
 	use File::Basename;
 	use Cwd 'abs_path';
 	my $script = basename($0);
+	$script =~ s/\.pl//;
 	my $fullpath = abs_path($0);
 	print <<EOF
 # Alienvault plugin
