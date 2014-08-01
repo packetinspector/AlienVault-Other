@@ -8,6 +8,13 @@ Takes Netflow data and alerts on conditions.  Currently it alerts on large downl
 Installation
 --------
 
+The SQL and Plugin file are all integrated into the script.
+
+- Download script from here
+- Also download rsyslog filter
+
+Transcript of installation:
+
 ```
 alienvault:/usr/local/bin# ./nf-alert.pl --help
 NF-Alert to SIEM
