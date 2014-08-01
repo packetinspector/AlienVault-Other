@@ -34,3 +34,25 @@ Stopping enhanced syslogd: rsyslogd.
 Starting enhanced syslogd: rsyslogd.
 alienvault:/usr/local/bin#
 ```
+
+- Then enable the plug-in as normal.
+
+Use Cases
+-----------
+- Correlate the events of this plugin with another like Snort or Proxy
+- Use your own thresholds in a correlation rule e.g. USERDATA1 > 500000000
+- Use policy to create a group of hosts you would not expect to upload or download excessively
+
+
+Userdata Fields
+----------
+
+Field | Data
+----- | ------
+userdata1 | bytes
+userdata2 | bpp
+userdata3 | pps
+userdata4 | flags
+
+
+
