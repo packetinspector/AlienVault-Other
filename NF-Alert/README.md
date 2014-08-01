@@ -15,7 +15,7 @@ The SQL and Plugin file are all integrated into the script.
 
 Transcript of installation:
 
-```bash
+```Shell
 alienvault:/usr/local/bin# ./nf-alert.pl --help
 NF-Alert to SIEM
  -s Make the SQL for plugin: ./nf-alert.pl -s | ossim-db
@@ -71,3 +71,7 @@ my %upload_alerts = ( 25000000 => [200, 'Network Upload greater than 25M'], 1000
 Future Versions
 -----------
 I believe there is more statistical information we can derive from Netflow.  Up/Down was simple, more rules to follow.
+
+Caveats
+-----------
+This things needs some testing.  Anyone with a high volume of netflow please tell me how it works for you.

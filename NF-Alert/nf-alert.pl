@@ -94,7 +94,7 @@ foreach (split(/\n/, $nf_dl_output)) {
 	next if !/\;/;
 	my @fields = parse_line($_);
 	#Go through and look for ends within our polling interval
-	if ($fields[1] > ($current_time - ($pi * 60) - 400)) {
+	if ($fields[1] > ($current_time - ($pi * 60) - 330)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;
@@ -127,7 +127,7 @@ foreach (split(/\n/, $nf_up_output)) {
 	next if !/\;/;
 	my @fields = parse_line($_);
 	#Go through and look for ends within our polling interval
-	if ($fields[1] > ($current_time - ($pi * 60) - 400)) {
+	if ($fields[1] > ($current_time - ($pi * 60) - 330)) {
 		print "Found Event within range,  " if $debug;
 		#Lets look at the bytes...
 		print "Number of bytes: $fields[8] \n" if $debug;
