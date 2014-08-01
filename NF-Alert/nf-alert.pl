@@ -11,6 +11,7 @@ use POSIX;
 use vars qw/ %opt /;
 
 use Data::Dumper;
+$Data::Dumper::Indent = 3; 
 ###########################################User Config Stuff
 
 #You may want to extend this directory lower to a specific collector.  You probably don't want to run this against netflow from perimeter for instance
@@ -172,16 +173,15 @@ sub send_message {
 }
 
 sub make_sql () {
-	my $sql_out = "INSERT INTO `plugin_sid` (`plugin_id`,`sid`,`reliability`, `priority`, `name`) VALUES ($plugin_id, %s, %s, $pri, '%s');\n";
+	my $sql_out = "INSERT INTO `plugin_sid` (`plugin_id`,`sid`,`reliability`, `priority`, `name`) VALUES ($plugin_id, %s, %s, %s, '%s');\n";
 	#Print Header
 	print "DELETE FROM plugin WHERE id = '$plugin_id';\n";
 	print "DELETE FROM plugin_sid where plugin_id = '$plugin_id';\n";
 	print "INSERT IGNORE INTO software_cpe VALUES ('cpe:/h:$plugin_name:$plugin_name:-', '$plugin_name', '1.0' , '$plugin_name $plugin_name 1.0', '$plugin_name', '$plugin_name:$plugin_id');\n";
 	print "INSERT IGNORE INTO plugin (id, type, name, description,product_type,vendor) VALUES ($plugin_id, 1, '$plugin_name', '$plugin_desc',17,'AlienVault');\n";
-	foreach my $type (@types) {
-		foreach my $key (keys %alerts) {
-			printf "$type $key\n";
-		}
+	my @list = (values %download_alerts, values %upload_alerts);
+	foreach my $event (@list) {
+		printf $sql_out, @$event[0], 5, 1, @$event[1];
 	}
 }
 
