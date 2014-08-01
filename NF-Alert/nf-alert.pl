@@ -3,8 +3,10 @@
 # Makes events for network traffic
 # Perhaps this will do more.  Right now it looks for large uploads and downloads
 use DateTime;
+use Date::Parse;
 use Getopt::Std;
 use Sys::Syslog;
+use POSIX;
 #
 use vars qw/ %opt /;
 
@@ -13,14 +15,16 @@ use vars qw/ %opt /;
 #You may want to extend this directory lower to a specific collector.  You probably don't want to run this against netflow from perimeter for instance
 my $nfdir = '/var/cache/nfdump/flows/live';
 #Nfdump notation: 25 Megs
-my $min_download_size = '+10M'; #in-line with alert hash below
+my $min_download_size = '+5M'; #in-line with alert hash below
 my $min_upload_size = '+5M'; #in-line with alert hash below
+#Netflow window - Legnth of time to go back and look for transfers
+my $netflow_window = 24; #in hours
 #Alert Thresholds (if you change these remake the SQL...)
 #[num_of_bytes] => ([sid], [message])
 my %download_alerts = { 25 => (100, 'Network Download greater than 25M'), 100000000 => (101, 'Network Download greater than 100M') };
 my %upload_alerts = { 25 => (200, 'Network Upload greater than 25M'), 100 => (201, 'Network Upload greater than 100M') };
 #Polling Interval - Copy of Watchdog in minutes
-my $pi = 3;
+my $pi = 15;
 #For plugin generation
 my $plugin_id = 90012;
 my $plugin_name = 'NF-Alert';
@@ -46,6 +50,9 @@ if ($opt{'p'}) {
 	exit;
 }
 
+#Grab current time
+my $current_time = time();
+
 #Grab networks in use
 my $networks = `grep networks= /etc/ossim/ossim_setup.conf`;
 chomp($networks);
@@ -56,28 +63,67 @@ my @netblocks = split /,/, $net;
 my $dst_filter = join(' or dst net ', @netblocks);
 my $src_filter = join(' or src net ', @netblocks);
 
+#Logging format for nfdump
+my $nf_format = 'fmt:%ts;%te;%td;%pr;%sa;%da;%sp;%dp;%byt;%bpp;%pps;%flg';
+
 #Debug
+print "Networks Found: \n" if $debug;
 print "DST: $dst_filter \nSRC: $src_filter \n" if $debug;
 
 #Make a polling date for nfdump to check
-my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( hours => 1)->strftime("%Y/%m/%d.%H:%M:%S");
+my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( hours => $netflow_window)->strftime("%Y/%m/%d.%H:%M:%S");
 my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
 
-my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_download_size' -q -n 100 -o extended -s record/bytes '(dst net $dst_filter) and not (src net $src_filter) and (flags F or flags P)'";
-my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q -n 100 -o extended -s record/bytes '(src net $src_filter) and not (dst net $dst_filter) and (flags F or flags P)'";
+my $nf_dump_cmd_download = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_download_size' -q -N -n 100 -o '$nf_format' -s record/bytes '(dst net $dst_filter) and not (src net $src_filter) and (flags F)'";
+my $nf_dump_cmd_upload = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -L '$min_upload_size' -q N -n 100 -o '$nf_format' -s record/bytes '(src net $src_filter) and not (dst net $dst_filter) and (flags F)'";
 
 print "Download Command: '$nf_dump_cmd_download'\n" if $debug;
 print "Upload Command: '$nf_dump_cmd_upload'\n" if $debug;
 
-print "Download: " . `$nf_dump_cmd_download` . "\n" if $debug;
-print "Upload: " . `$nf_dump_cmd_upload` . "\n" if $debug;
+my $nf_dl_output = `$nf_dump_cmd_download`;
+my $nf_up_output = `$nf_dump_cmd_upload`;
 
+print "Download Output: $nf_dl_output\n" if $debug;
+print "Upload Output: $nf_up_output\n" if $debug;
+
+foreach (split(/\n/, $nf_dl_output)) {
+	chomp;
+	#skip if our data isn't present
+	next if !/\;/;
+	my @fields = parse_line($_);
+	#Go through and look for ends within our polling interval
+	if ($fields[1] > ($current_time - $pi * 60)) {
+		print "Found Event within range,  " if $debug;
+		#Lets look at the bytes...
+		print "Number of bytes: $fields[8] \n" if $debug;
+	}
+	
+}
+
+foreach (split(/\n/, $nf_up_output)) {
+	chomp;
+	#skip if our data isn't present
+	next if !/\;/;
+	print "Parsing Uploads - line: $_ \n" if $debug;
+}
+
+sub parse_line() {
+	my $line = shift;
+	print "Parsing Line: $_ \n" if $debug;
+	my @fields = split /\;/;
+	#Nfdump adds spacing for some reason...remove it.
+	s/^\s+|\s+$//g for(@fields);
+	#Change fields to unixtime
+	$fields[0] = floor(str2time($fields[0]));
+	$fields[1] = floor(str2time($fields[1]));
+	return @fields;
+}
 
 sub send_message {
 	my $log = shift;
 	#send log message, changing IPs if needed....
-	openlog($plugin_name, '', 'lpr');    # don't forget this
-	syslog("debug", $log);
+	openlog($plugin_name, '', 'local6');    # don't forget this
+	syslog("notice", $log);
 	closelog();
 }
 
