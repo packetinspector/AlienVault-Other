@@ -85,8 +85,8 @@ print "Upload Command: '$nf_dump_cmd_upload'\n" if $debug;
 my $nf_dl_output = `$nf_dump_cmd_download`;
 my $nf_up_output = `$nf_dump_cmd_upload`;
 
-print "Download Output: $nf_dl_output\n" if $debug;
-print "Upload Output: $nf_up_output\n" if $debug;
+print "Download Output: $nf_dl_output\n---End\n" if $debug;
+print "Upload Output: $nf_up_output\n--End\n" if $debug;
 
 foreach (split(/\n/, $nf_dl_output)) {
 	chomp;
@@ -161,7 +161,15 @@ sub parse_line() {
 	#Change fields to unixtime
 	$fields[0] = floor(str2time($fields[0]));
 	$fields[1] = floor(str2time($fields[1]));
+	print "Pretty Bytes: " . scaledbytes($fields[8]) . "\n" if $debug;
 	return @fields;
+}
+
+#Straight up copy+paste: http://www.perlmonks.org/?node_id=378580
+sub scaledbytes {
+   (sort { length $a <=> length $b }
+   map { sprintf '%.3g%s', $_[0]/1024**$_->[1], $_->[0] }
+   [" bytes"=>0],[KB=>1],[MB=>2],[GB=>3],[TB=>4],[PB=>5],[EB=>6])[0]
 }
 
 sub send_message {
