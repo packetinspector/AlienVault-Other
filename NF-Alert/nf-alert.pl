@@ -173,6 +173,7 @@ if ($debug) {
 =cut
 
 if ($debug) {
+	print "EXPERIMENTAL STUFF HERE BELOW:..........................\n";
 	my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( minutes => 2*$pi)->strftime("%Y/%m/%d.%H:%M:%S");
 	my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
 	$nf_dump_cmd_topN = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -q -N -B -o '$nf_format' '(src net $src_filter) and pps>0'";
