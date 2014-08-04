@@ -329,7 +329,7 @@ userdata5={\$pbytes}
 EOF
 }
 
-sub HELP_MESSAGE { print " -s Make the SQL for plugin: $0 -s | ossim-db\n -p Make the plugin: $0 -p > /etc/ossim/agent/plugins/$plugin_name.cfg\n -c Do the Check\n -v Be Verbose\n -V Show line processing\n"; }
+sub HELP_MESSAGE { print " -s Make the SQL for plugin: $0 -s | ossim-db\n -p Make the plugin: $0 -p > /etc/ossim/agent/plugins/$plugin_name.cfg\n -v Be Verbose\n -V Show line processing\n"; }
 sub VERSION_MESSAGE { print "NF-Alert to SIEM\n"; }
 
 #/usr/bin/nfdump -R '/var/cache/nfdump/flows/live' -t '2014/07/26.15:17:00-2014/07/26.15:20:00' -o extended -s record/bytes '(dst net 192.168.0.0/16 or dst net 172.16.0.0/12 or dst net 10.0.0/8) and not (src net 192.168.0.0/16 or src net 172.16.0.0/12 or src net 10.0.0/8)' -L '+25M' -n 75

@@ -20,7 +20,6 @@ alienvault:/usr/local/bin# ./nf-alert.pl --help
 NF-Alert to SIEM
  -s Make the SQL for plugin: ./nf-alert.pl -s | ossim-db
  -p Make the plugin: ./nf-alert.pl -p > /etc/ossim/agent/plugins/NF-Alert.cfg
- -c Do the Check
  -v Be Verbose
  -V Show line processing
 alienvault:/usr/local/bin# ./nf-alert.pl -p > /etc/ossim/agent/plugins/NF-Alert.cfg
