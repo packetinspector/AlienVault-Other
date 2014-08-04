@@ -54,6 +54,7 @@ userdata1 | bytes
 userdata2 | bpp
 userdata3 | pps
 userdata4 | flags
+userdata5 | Pretty Bytes.. KB, MB, GB, etc...
 
 Other Notes
 -----------

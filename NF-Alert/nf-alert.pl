@@ -36,9 +36,10 @@ my $plugin_desc = 'Netflow Alerts';
 ############################################End User Config
 #Command Line Switches
 $Getopt::Std::STANDARD_HELP_VERSION = 1;
-getopts('spvc', \%opt);
+getopts('spVvc', \%opt);
 #Using debug?
 my $debug = defined($opt{'v'});
+my $line_debug = defined($opt{'V'});
 
 if ($opt{'s'}) {
 	#Time to make the donuts
@@ -66,7 +67,7 @@ my $dst_filter = join(' or dst net ', @netblocks);
 my $src_filter = join(' or src net ', @netblocks);
 
 #Logging format for nfdump
-my $nf_format = 'fmt:%ts;%te;%td;%pr;%sa;%da;%sp;%dp;%byt;%bpp;%pps;%flg';
+my $nf_format = 'fmt:%ts;%te;%td;%pr;%sa;%da;%sp;%dp;%byt;%bpp;%pps;%fl;%flg';
 
 #Debug
 print "Networks Found: \n" if $debug;
@@ -92,7 +93,7 @@ foreach (split(/\n/, $nf_dl_output)) {
 	chomp;
 	#skip if our data isn't present
 	next if !/\;/;
-	my @fields = parse_line($_);
+	my @fields = parse_line_custom($_);
 	#Go through and look for ends within our polling interval
 	if ($fields[1] > ($current_time - ($pi * 60) - 330)) {
 		print "Found Event within range,  " if $debug;
@@ -125,7 +126,7 @@ foreach (split(/\n/, $nf_up_output)) {
 	chomp;
 	#skip if our data isn't present
 	next if !/\;/;
-	my @fields = parse_line($_);
+	my @fields = parse_line_custom($_);
 	#Go through and look for ends within our polling interval
 	if ($fields[1] > ($current_time - ($pi * 60) - 330)) {
 		print "Found Event within range,  " if $debug;
@@ -152,16 +153,98 @@ foreach (split(/\n/, $nf_up_output)) {
 	
 }
 
-sub parse_line() {
+=begin comment
+#Now for some TopN checkin'
+if ($debug) {
+	my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( minutes => 2*$pi)->strftime("%Y/%m/%d.%H:%M:%S");
+	my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
+	$nf_dump_cmd_topN = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -q -N -n 10 -o csv -s srcip -s dstip";
+	print "Download Command: '$nf_dump_cmd_topN'\n" if $debug;
+	#my $nf_topN_output = `$nf_dump_cmd_topN`;
+	print "TopN Output:\n$nf_topN_output\n--End\n" if $debug;
+	foreach (split(/\n/, $nf_topN_output)) {
+		chomp;
+		if (/^\d{4}-\d{2}-\d{2}/) {
+			my @parse_topn = parse_line_csv($_);
+			print join(';',@parse_topn) . "\n";
+		}
+	}
+}
+=cut
+
+if ($debug) {
+	my $nfdump_check_time = DateTime->now(time_zone=> "local")->subtract( minutes => 2*$pi)->strftime("%Y/%m/%d.%H:%M:%S");
+	my $nfdump_check_now = DateTime->now(time_zone=> "local")->strftime("%Y/%m/%d.%H:%M:%S");
+	$nf_dump_cmd_topN = "/usr/bin/nfdump -R '$nfdir' -t '$nfdump_check_time-$nfdump_check_now' -q -N -B -o '$nf_format' '(src net $src_filter) and pps>0'";
+	print "Dump Command: '$nf_dump_cmd_topN'\n" if $debug;
+	my $nf_topN_output = `$nf_dump_cmd_topN`;
+	#print "TopN Output:\n$nf_topN_output\n--End\n" if $debug;
+	my @ips;
+	my %count_hash;
+	foreach (split(/\n/, $nf_topN_output)) {
+		chomp;
+		if (/^\d{4}-\d{2}-\d{2}/) {
+			my @parse_topn = parse_line_custom($_);
+			#print join(';',@parse_topn) . "\n";
+			push @ips, $parse_topn[4];
+			#Do some checks here
+		}
+	}
+	#Count the uniqueness for 1-Many alerts
+	$count_hash{$_}++ for @ips;
+	#print Dumper(%count_hash);
+	print "Host Counts:\n";
+	while ( my ($ip,$count) = each(%count_hash) ) {
+		print "$ip - $count: ";
+		if ($count > 20) {
+			print "Alert";
+		}
+		print "\n";
+	}
+}
+
+
+
+#parse_line(formats) -> threshold(fields, field, alert_hash)
+
+#ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,pps,pbs,bpp
+#2014-08-04 14:06:10,2014-08-04 16:05:48,7178.434,any,192.168.100.69,4271,21.6,82698,21.9,82977188,36.2,11,92473,1003
+sub parse_line_csv () {
 	my $line = shift;
-	print "Parsing Line: $_ \n" if $debug;
+	print "Parsing Line: $_ \n" if $line_debug;
+	my @fields = split /,/;
+	#Nfdump adds spacing for some reason...remove it.
+	s/^\s+|\s+$//g for(@fields);
+	#Change fields to unixtime
+	$fields[0] = floor(str2time($fields[0]));
+	$fields[1] = floor(str2time($fields[1]));
+	print "Pretty Bytes: " . scaledbytes($fields[9]) . "\n" if $line_debug;
+	push @fields, scaledbytes($fields[9]);
+	if ($fields[2] != 0) {
+		push @fields, $fields[5] / $fields[2];
+	}
+	return @fields;
+}
+
+sub parse_line_custom() {
+	my $line = shift;
+	print "Parsing Line: $_ \n" if $line_debug;
 	my @fields = split /\;/;
 	#Nfdump adds spacing for some reason...remove it.
 	s/^\s+|\s+$//g for(@fields);
 	#Change fields to unixtime
 	$fields[0] = floor(str2time($fields[0]));
 	$fields[1] = floor(str2time($fields[1]));
-	print "Pretty Bytes: " . scaledbytes($fields[8]) . "\n" if $debug;
+	#Add pretty bytes
+	print "Pretty Bytes: " . scaledbytes($fields[8]) . "\n" if $line_debug;
+	push @fields, scaledbytes($fields[8]);
+	#Add Flows/second
+	my $duration = $fields[2] * 1;
+	if ( $duration > 0) {
+		push @fields, $fields[11] / $duration;
+	} else {
+		push @fields, 0;
+	}
 	return @fields;
 }
 
@@ -228,7 +311,7 @@ shutdown=
 
 [simplematch]
 event_type=event
-regexp="$plugin_name:\\s+(?P<sid>[^;]+);(?P<start_time>[^;]+);(?P<end_time>[^;]+);(?P<durration>[^;]+);(?P<proto>[^;]+);(?P<src_ip>[^;]+);(?P<dst_ip>[^;]+);(?P<src_port>[^;]+);(?P<dst_port>[^;]+);(?P<bytes>[^;]+);(?P<bpp>[^;]+);(?P<pps>[^;]+);(?P<flags>[^;]+)"
+regexp="$plugin_name:\\s+(?P<sid>[^;]+);(?P<start_time>[^;]+);(?P<end_time>[^;]+);(?P<durration>[^;]+);(?P<proto>[^;]+);(?P<src_ip>[^;]+);(?P<dst_ip>[^;]+);(?P<src_port>[^;]+);(?P<dst_port>[^;]+);(?P<bytes>[^;]+);(?P<bpp>[^;]+);(?P<pps>[^;]+);(?P<flows>[^;]+);(?P<flags>[^;]+);(?P<pbytes>[^;]+)"
 plugin_sid={\$sid}
 date={normalize_date(\$end_time)}
 src_ip={\$src_ip}
@@ -240,11 +323,12 @@ userdata1={\$bytes}
 userdata2={\$bpp}
 userdata3={\$pps}
 userdata4={\$flags}
+userdata5={\$pbytes}
 
 EOF
 }
 
-sub HELP_MESSAGE { print " -s Make the SQL for plugin: $0 -s | ossim-db\n -p Make the plugin: $0 -p > /etc/ossim/agent/plugins/$plugin_name.cfg\n -c Do the Check\n -v Be Verbose\n"; }
+sub HELP_MESSAGE { print " -s Make the SQL for plugin: $0 -s | ossim-db\n -p Make the plugin: $0 -p > /etc/ossim/agent/plugins/$plugin_name.cfg\n -c Do the Check\n -v Be Verbose\n -V show line processing\n"; }
 sub VERSION_MESSAGE { print "NF-Alert to SIEM\n"; }
 
 #/usr/bin/nfdump -R '/var/cache/nfdump/flows/live' -t '2014/07/26.15:17:00-2014/07/26.15:20:00' -o extended -s record/bytes '(dst net 192.168.0.0/16 or dst net 172.16.0.0/12 or dst net 10.0.0/8) and not (src net 192.168.0.0/16 or src net 172.16.0.0/12 or src net 10.0.0/8)' -L '+25M' -n 75
