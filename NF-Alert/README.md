@@ -22,6 +22,7 @@ NF-Alert to SIEM
  -p Make the plugin: ./nf-alert.pl -p > /etc/ossim/agent/plugins/NF-Alert.cfg
  -c Do the Check
  -v Be Verbose
+ -V Show line processing
 alienvault:/usr/local/bin# ./nf-alert.pl -p > /etc/ossim/agent/plugins/NF-Alert.cfg
 alienvault:/usr/local/bin# ./nf-alert.pl -s | ossim-db
 alienvault:/usr/local/bin# /etc/init.d/ossim-server restart
