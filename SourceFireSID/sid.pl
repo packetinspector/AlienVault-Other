@@ -1,4 +1,5 @@
-#!/urs/bin/perl use DBI;
+#!/usr/bin/perl 
+use DBI;
 $dbh = DBI->connect('DBI:mysql:sfsnort', 'root', 'admin') || die "Could not connect to database: $DBI::errstr";
 
 $query = "select gid,sid,msg FROM rule_header ";
