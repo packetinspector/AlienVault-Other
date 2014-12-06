@@ -1,0 +1,75 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import uuid
+import db
+import sys
+from apimethods.decorators import require_db
+from db.models.alienvault import Server
+from db.methods.system import get_system_id_from_local, get_children_servers, get_system_ip_from_system_id
+from ansiblemethods.ansiblemanager import Ansible
+from ansiblemethods.helper import ansible_is_valid_response
+
+ansible = Ansible()
+
+def resend_event(event_id, server_id):
+	server_id = str(uuid.UUID(server_id))
+	event_id = str(uuid.UUID(event_id))
+	(success, child_ip) = get_system_ip_from_system_id(server_id)
+	cmd = "echo \"%s\" | nc 127.0.0.1 40004 -w1" % event_id
+	response = ansible.run_module(host_list=[child_ip],
+			  module="shell",
+			  args=cmd)
+	output = str(response['contacted'][child_ip]['stdout'])
+	split = output.splitlines()
+
+@require_db
+def main():
+    server_alarm_set = set()
+    print "My ID..."
+    sys.stdout.flush()
+    (success, system_id) = get_system_id_from_local()
+    print system_id
+    query = "select hex(a.event_id), hex(e.server_id) FROM alarm a, acl_entities e WHERE a.corr_engine_ctx = e.id ORDER BY timestamp DESC LIMIT 100;"
+    print "Querying Alarms on FedServer..."
+    try:
+        data = db.session.connection(mapper=Server).execute(query)
+        for row in data:
+            #print row
+            server_alarm_set.add(row[0] + "\t" + row[1])
+    except Exception, msg:
+    	print str(msg)
+        db.session.rollback()
+    
+    print "Finding connected servers..."
+    (success, children) = get_children_servers(system_id)
+    for child in children:
+    	    child_alarms = {}
+	    (success, child_ip) = get_system_ip_from_system_id(child)
+    	    print "Connecting to " + child + " at " + child_ip
+    	    cmd = "echo \"select hex(a.event_id), hex(e.server_id) FROM alarm a, acl_entities e WHERE a.corr_engine_ctx = e.id ORDER BY timestamp DESC LIMIT 100;\" | ossim-db"
+    	    response = ansible.run_module(host_list=[child_ip],
+                                  module="shell",
+                                  args=cmd)
+            output = str(response['contacted'][child_ip]['stdout'])
+            split = output.splitlines()
+            split.pop(0)
+            print "Comparing Alarms..."
+            #print split
+            #print server_alarm_set
+            missing = 0
+            for line in split:
+            	    if line not in server_alarm_set:
+            	    	    (event_id, system_id) = line.split("\t")
+            	    	    missing = 1
+            	    	    print "Missing Alarm!  " + event_id
+            	    	    print "Attempting to resend:"
+            	    	    resend_event(event_id, system_id)
+            if not missing:
+            	    print "No Missed Alarms...Moving on..."
+            	    	    
+    return
+
+
+if __name__ == "__main__":
+    main()
