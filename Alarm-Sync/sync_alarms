@@ -21,7 +21,6 @@ def resend_event(event_id, server_id):
 			  module="shell",
 			  args=cmd)
 	output = str(response['contacted'][child_ip]['stdout'])
-	split = output.splitlines()
 
 @require_db
 def main():
