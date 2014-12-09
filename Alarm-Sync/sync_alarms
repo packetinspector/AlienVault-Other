@@ -55,6 +55,10 @@ def main():
     	    response = ansible.run_module(host_list=[child_ip],
                                   module="shell",
                                   args=cmd)
+            success, msg = ansible_is_valid_response(child_ip, response)
+            if not success:
+            	print "Trouble reaching " + child_ip + " moving on..."
+		break
             output = str(response['contacted'][child_ip]['stdout'])
             split = output.splitlines()
             split.pop(0)
