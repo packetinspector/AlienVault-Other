@@ -61,21 +61,23 @@ def main():
 		break
             output = str(response['contacted'][child_ip]['stdout'])
             split = output.splitlines()
-            split.pop(0)
-            print "Comparing Alarms..."
-            print "Found " + str(len(split)) + " Alarms"
-	    sys.stdout.flush()
-            missing = 0
-            for line in split:
-            	    if line not in server_alarm_set:
-            	    	    (event_id, system_id) = line.split("\t")
-            	    	    missing = 1
-            	    	    print "Missing Alarm!  " + event_id
-            	    	    print "Attempting to resend:"
-            	    	    resend_event(event_id, system_id)
-            if not missing:
-            	    print "No Missed Alarms...Moving on..."
-            	    	    
+            if len(split) > 1:
+		    split.pop(0)
+		    print "Comparing Alarms..."
+		    print "Found " + str(len(split)) + " Alarms"
+		    sys.stdout.flush()
+		    missing = 0
+		    for line in split:
+			    if line not in server_alarm_set:
+				    (event_id, system_id) = line.split("\t")
+				    missing = 1
+				    print "Missing Alarm!  " + event_id
+				    print "Attempting to resend:"
+				    resend_event(event_id, system_id)
+		    if not missing:
+			    print "No Missed Alarms...Moving on..."
+	    else:
+	    	    print "No Alarms Found...Moving on..."
     return
 
 
