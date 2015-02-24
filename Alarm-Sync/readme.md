@@ -16,3 +16,5 @@ Notes
 You only need to install and run this from the fedserver. 
 
 Highly untested.  Not much error checking yet. Use with caution.
+
+This currently uses a 4 hour window for alarms.  You can modify that easily if you need to go further back.
