@@ -86,12 +86,12 @@ def main():
 		
 		output += "Adding Hosts...\n"
 		#Do this many times....
-		for x in range(0,2):
+		for x in range(0,3):
 			f = open(prads_log, 'a+')
 			for h,n in hosts.iteritems():
 				f.write(h + '|' + n + "\n")
 			f.close
-			time.sleep(1)
+			time.sleep(3)
 			
 	module.exit_json(changed=True, msg=output, hosts_found = hosts)
 # this is magic, see lib/ansible/module_common.py
