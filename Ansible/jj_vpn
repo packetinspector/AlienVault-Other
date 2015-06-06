@@ -1,7 +1,26 @@
 #!/usr/bin/python
 
 #Ansible module to take the long way to netbios names
+# This runs an nmap scan, with script, grabs netbios names.  Fakes prads into accepting
+# Put this file in: /usr/share/alienvault/api_core/share/ansible/jj_nmap
+#Also make sure the network your searching is defined for the sensor, otherwise the server will reject the idm events
+#
+# Usage and Examples
+# ansible [sensor] -s -m jj_nmap -a "target=[net_range]"
 # ansible 10.67.1.210 -s -m jj_nmap -a "target=192.168.100.0/24"
+# ansible 10.67.1.210 -s -m jj_nmap -a "target=192.168.100.0/24"; tail -50 /var/log/alienvault/server/server.log
+#10.67.1.210 | success >> {
+#"changed": true,
+#"hosts_found": {
+#"192.168.100.195": "machine1",
+#"192.168.100.200": "machine2",
+#"192.168.100.251": "machine3",
+#"192.168.100.75": "machine4",
+#"192.168.100.76": "machine5"
+#},
+#"msg": "Adding Hosts...\n"
+#}
+
 
 #Import Stuff
 import sys 
@@ -63,13 +82,15 @@ def main():
 			(status, shell_output) = getstatusoutput("service ossim-agent restart")
 			output += shell_output
 			output += "\nWaiting\n"
-			time.sleep(7)
+			time.sleep(10)
 		
 		output += "Adding Hosts...\n"
-		f = open(prads_log, 'a+')
-		for h,n in hosts.iteritems():
-			f.write(h + '|' + n + "\n")
-		f.close
+		#Do this many times....
+		for x in range(0,2):
+			f = open(prads_log, 'a+')
+			for h,n in hosts.iteritems():
+				f.write(h + '|' + n + "\n")
+			f.close
 			
 	module.exit_json(changed=True, msg=output, hosts_found = hosts)
 # this is magic, see lib/ansible/module_common.py
