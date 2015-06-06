@@ -53,7 +53,7 @@ def main():
 			#No local file to grab hostnames. Create one
 			output += "Adding Prads Config\n"
 			f = open('/etc/ossim/agent/plugins/prads_eth0.cfg.local', 'w')
-			f.write('[099 - Hostname]\nevent_type=idm-event\nregexp="(?P<asset_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}),(?P<asset_name>.*)"\ninventory_source=6\nip={$asset_ip}\nhostname={$asset_name}\n')
+			f.write('[099 - Hostname]\nevent_type=idm-event\nregexp="(?P<asset_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(?P<asset_name>.*)"\ninventory_source=6\nip={$asset_ip}\nhostname={$asset_name}\n')
 			f.close()
 			output += "Restarting Agent\n"
 			(status, shell_output) = getstatusoutput("service ossim-agent restart")
@@ -64,7 +64,7 @@ def main():
 		output += "Adding Hosts...\n"
 		f = open(prads_log, 'a+')
 		for h,n in hosts.iteritems():
-			f.write(h + ',' + n + "\n")
+			f.write(h + '|' + n + "\n")
 		f.close
 			
 	module.exit_json(changed=True, msg=output, hosts_found = hosts)
