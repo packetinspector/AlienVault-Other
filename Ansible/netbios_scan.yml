@@ -1,0 +1,15 @@
+# NetBios Scan
+# Input params:
+# target: Host where it should launched
+# Sample of usage:
+# ansible-playbook -s  -v --extra-vars="target=10.67.10.10" netbios_scan.yml
+# Exclude localhost and whatever else....
+- hosts: $target:!10.67.0.1:!192.168.200.175
+  sudo: True
+  gather_facts: no
+  tasks:
+
+    - name: Run NetBios Scan
+      action: jj_nmap target=192.168.1.0/24
+      async: 84600
+      poll: 0
