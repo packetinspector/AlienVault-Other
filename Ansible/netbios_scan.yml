@@ -10,6 +10,6 @@
   tasks:
 
     - name: Run NetBios Scan
-      action: jj_nmap target=192.168.1.0/24
+      action: netbios_nmap target=192.168.1.0/24
       async: 84600
       poll: 0
