@@ -2,13 +2,13 @@
 
 #Ansible module to take the long way to netbios names
 # This runs an nmap scan, with script, grabs netbios names.  Fakes prads into accepting
-# Put this file in: /usr/share/alienvault/api_core/share/ansible/jj_nmap
+# Put this file in: /usr/share/alienvault/api_core/share/ansible/netbios_nmap
 #Also make sure the network your searching is defined for the sensor, otherwise the server will reject the idm events
 #
 # Usage and Examples
-# ansible [sensor] -s -m jj_nmap -a "target=[net_range]"
-# ansible 10.67.1.210 -s -m jj_nmap -a "target=192.168.100.0/24"
-# ansible 10.67.1.210 -s -m jj_nmap -a "target=192.168.100.0/24"; tail -50 /var/log/alienvault/server/server.log
+# ansible [sensor] -s -m netbios_nmap -a "target=[net_range]"
+# ansible 10.67.1.210 -s -m netbios_nmap -a "target=192.168.100.0/24"
+# ansible 10.67.1.210 -s -m netbios_nmap -a "target=192.168.100.0/24"; tail -50 /var/log/alienvault/server/server.log
 #10.67.1.210 | success >> {
 #"changed": true,
 #"hosts_found": {
