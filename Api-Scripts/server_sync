@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#File location: /usr/share/alienvault/api_core/bin/alienvault/server_sync
+
+import sys
+from apimethods.decorators import require_db
+from db.models.alienvault import Server
+from db.methods.system import get_system_id_from_local, get_children_servers, get_system_ip_from_system_id
+from apimethods.system.system import sync_database_from_child, generate_sync_sql
+from apimethods.utils import get_base_path_from_system_id
+from ansiblemethods.system.system import ansible_get_hostname
+
+sys.stdout.flush()
+(success, system_id) = get_system_id_from_local()
+print "My ID is %s" % system_id
+
+print "Finding connected servers..."
+(success, children) = get_children_servers(system_id)
+for child in children:
+        (success, child_ip) = get_system_ip_from_system_id(child)
+        (success, hostname) = ansible_get_hostname(child_ip)
+        print "Connecting to %s(%s)..." % (hostname, child_ip)
+        #local_md5file_path = "%s" % get_base_path_from_system_id(child) + "/sync_%s.md5" % child
+        print "\t\t" + 'Creating Sync File on Remote System'
+        generate_sync_sql(child_ip, False)
+        print "\t\t" + 'Running Sync'
+        (status, msg) = sync_database_from_child(child)
+        print "\t\t" + msg
