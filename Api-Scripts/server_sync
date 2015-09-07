@@ -3,8 +3,6 @@
 #File location: /usr/share/alienvault/api_core/bin/alienvault/server_sync
 
 import sys
-from apimethods.decorators import require_db
-from db.models.alienvault import Server
 from db.methods.system import get_system_id_from_local, get_children_servers, get_system_ip_from_system_id
 from apimethods.system.system import sync_database_from_child, generate_sync_sql
 from apimethods.utils import get_base_path_from_system_id
