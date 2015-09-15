@@ -21,6 +21,7 @@ def resend_event(event_id, server_id):
 			  module="shell",
 			  args=cmd)
 	output = str(response['contacted'][child_ip]['stdout'])
+	print output
 
 @require_db
 def main():
@@ -51,7 +52,7 @@ def main():
 	    (success, child_ip) = get_system_ip_from_system_id(child)
     	    print "Connecting to " + child + " at " + child_ip
     	    #cmd = "echo \"select hex(a.event_id), hex(e.server_id) FROM alarm a, acl_entities e WHERE a.corr_engine_ctx = e.id ORDER BY timestamp DESC LIMIT 100;\" | ossim-db"
-    	    cmd = "echo \"select hex(a.event_id), hex(e.server_id) FROM alarm a, acl_entities e WHERE a.timestamp > DATE_SUB(now(), interval 4 hour) AND a.corr_engine_ctx = e.id ORDER BY timestamp DESC LIMIT 100\" | ossim-db"
+    	    cmd = "echo \"select hex(a.event_id), hex(e.server_id), timestamp, hex(backlog_id) FROM alarm a, acl_entities e WHERE a.timestamp > DATE_SUB(now(), interval 4 hour) AND a.corr_engine_ctx = e.id ORDER BY timestamp DESC LIMIT 100\" | ossim-db"
     	    response = ansible.run_module(host_list=[child_ip],
                                   module="shell",
                                   args=cmd)
@@ -69,9 +70,10 @@ def main():
 		    missing = 0
 		    for line in split:
 			    if line not in server_alarm_set:
-				    (event_id, system_id) = line.split("\t")
+				    (event_id, system_id, timestamp, backlog_id) = line.split("\t")
 				    missing = 1
-				    print "Missing Alarm!  " + event_id
+				    #print "Missing Alarm!  " + backlog_id + " from event: " + event_id + " Alarm Date: " + timestamp
+				    print timestamp + " " + child_ip + " Missing Alarm: " + backlog_id + " from event: " + event_id
 				    print "Attempting to resend:"
 				    resend_event(event_id, system_id)
 		    if not missing:
