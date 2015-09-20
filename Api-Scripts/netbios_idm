@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#This API Script will insert hosts via IDM from the netbios script. 
+#     It depends on:  /usr/share/alienvault/api_core/share/ansible/netbios_nmap
+#     Using the IDM is a safer route.  However the network must be present and loaded by ossim-server
+import json
+import api_log
+from db.methods.sensor import get_sensor_ip_from_sensor_id,get_sensor_id_from_sensor_ip,get_sensor_ctx_by_sensor_id
+from apimethods.data.idmconn import IDMConnection
+from apimethods.data.event import HostInfoEvent
+from ansiblemethods.ansiblemanager import Ansible, PLAYBOOKS
+from ansiblemethods.helper import ansible_is_valid_response, fetch_file
+from optparse import OptionParser, SUPPRESS_HELP
+from apimethods.utils import is_valid_ipv4, is_valid_uuid
+
+def parse_args():
+        usage = "alienvault-api netbios_idm --sensor-ip=[ip.address] [ --cidr=[scanning_range] ]"
+        parser = OptionParser(usage=usage)
+        
+        parser.add_option("-i", "--sensor-ip", dest="sensor_ip", type="string", default=None,
+                      help="Sensor Address")
+        
+        parser.add_option("-c", "--cidr", dest="cidr", type="string", default='192.168.100.0/24',
+                      help="Scanning Range")
+        
+        (options, args) = parser.parse_args()
+        
+        if not options.sensor_ip:
+                print "Sensor IP Required"
+                print "Usage: %s" % usage
+                exit(-1)
+        
+        if options.sensor_ip and not is_valid_ipv4(options.sensor_ip):
+                print "Bad format: sensor_ip"
+                print "Usage: %s" % usage
+                exit(-1)
+
+        return (options, args)
+
+
+
+def main():
+        
+        #Parse some args...
+        (options, args) = parse_args()
+        #Grab sensor IP from options
+        sensor_ip = options.sensor_ip
+        #Scan Range
+        cidr = options.cidr
+        #Lookup sensor ID from IP
+        rt, sensor_id = get_sensor_id_from_sensor_ip(sensor_ip)
+        if not rt:
+                print "Sensor Lookup Failed: %s" % sensor_id
+                exit(-1)
+        print "Found sensor with id: %s" % sensor_id                
+        #Grab context
+        rt, ctx_id = get_sensor_ctx_by_sensor_id(sensor_id)
+        
+        print "Starting up NMAP runner..."
+        
+        ansible = Ansible()
+        
+        print "\tRunning Netbios Resolver..."
+        
+        try:
+                response = ansible.run_module([sensor_ip], 'netbios_nmap', "target=%s" % cidr)
+                (success, msg) = ansible_is_valid_response(sensor_ip, response)
+                if not success:
+                    api_log.error("[ansible_netbios_run] Error: %s" % str(msg))
+                data = ""
+                if response['contacted'][sensor_ip]['msg'] != '':
+                    data = response['contacted'][sensor_ip]['msg']
+                    hosts_found = response['contacted'][sensor_ip]['hosts_found']
+        except Exception as exc:
+                api_log.error("[ansible_netbios_exc] Error: %s" % str(exc))
+                
+        print data
+        #print hosts_found
+        
+        if len(hosts_found):
+                conn = IDMConnection(sensor_id=sensor_id)
+                if conn.connect():                
+                        for h,n in hosts_found.iteritems():
+                                print "Inserting Host %s (%s) " % (h,n)
+                                hie = HostInfoEvent()
+                                hie["ip"] = h
+                                hie["hostname"] = n
+                                hie["ctx"] = ctx_id
+                                
+                                try:
+                                        api_log.info("IDM Event: {0}".format(str(hie)))
+                                        conn.send(str(hie))
+                                        hie = None
+                                        
+                                except Exception as e:
+                                        print "Error Inserting."
+                                        api_log.error("IDM connector, cannot send the event {0}".format(str(e)))
+                        conn.close()
+                
+if __name__ == "__main__":
+    main()
