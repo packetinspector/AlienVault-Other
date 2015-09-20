@@ -1,0 +1,127 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# This will install an ossec agent on a windows host
+# Put this file in: /usr/share/alienvault/api_core/share/ansible/ossec_win_install
+# Give the sensor IP and host IP of the machine you install on.  If host doesn't exist you will be prompted for hostname
+# Give creds when prompted
+
+
+from db.methods.sensor import get_sensor_ip_from_sensor_id,get_sensor_id_from_sensor_ip,get_sensor_ctx_by_sensor_id
+from optparse import OptionParser, SUPPRESS_HELP
+from apimethods.utils import is_valid_ipv4
+from db.methods.host import get_host_id_by_ip_ctx
+from db.methods.host import create_host
+from celerymethods.jobs.ossec_win_deploy import ossec_win_deploy
+from celery.result import AsyncResult
+import getpass
+from time import sleep
+import json
+
+def parse_args():
+        usage = "alienvault-api ossec_win_install --sensor-ip=[ip.address] --asset-ip=[ip.address]"
+        parser = OptionParser(usage=usage)
+        
+        parser.add_option("-s", "--sensor-ip", dest="sensor_ip", type="string", default=None,
+                      help="Sensor Address")
+        parser.add_option("-a", "--asset-ip", dest="host_ip", type="string", default=None,
+                      help="Host Address")
+        
+        
+        (options, args) = parser.parse_args()
+        
+        if not options.sensor_ip:
+                print "Sensor IP Required"
+                print "Usage: %s" % usage
+                exit(-1)
+        
+        if options.sensor_ip and not is_valid_ipv4(options.sensor_ip):
+                print "Bad format: sensor_ip"
+                print "Usage: %s" % usage
+                exit(-1)
+                
+        if not options.host_ip:
+                print "Host IP Required"
+                print "Usage: %s" % usage
+                exit(-1)
+        
+        if options.host_ip and not is_valid_ipv4(options.host_ip):
+                print "Bad format: host_ip"
+                print "Usage: %s" % usage
+                exit(-1)
+
+        return (options, args)
+
+def login():
+        domain = raw_input("Domain []: ")
+        if not domain:
+                domain = ''
+        
+        user = raw_input("Username [administrator]: ")
+        if not user:
+                user = 'administrator'
+        
+        pprompt = lambda: (getpass.getpass(), getpass.getpass('Retype password: '))
+        
+        p1, p2 = pprompt()
+        while p1 != p2:
+                print('Passwords do not match. Try again')
+                p1, p2 = pprompt()
+        
+        return user, p1, domain
+
+def main():
+        (options, args) = parse_args()
+        #Grab sensor and host IP from options
+        sensor_ip = options.sensor_ip
+        win_ip = options.host_ip
+        #Need some pre-reqs
+        #Lookup sensor ID from IP
+        rt, sensor_id = get_sensor_id_from_sensor_ip(sensor_ip)
+        if not rt:
+                print "Sensor Lookup Failed: %s" % sensor_id
+                exit(-1)
+        print "Found sensor with id: %s" % sensor_id                
+        #Grab context
+        rt, ctx = get_sensor_ctx_by_sensor_id(sensor_id)
+        if not rt:
+                print "Invalid or no Context found."
+                exit(-1)
+        
+        #Now we need to know the host id of the host given
+        rt, host_id = get_host_id_by_ip_ctx(win_ip, ctx)
+        if not rt:
+                print "Error: %s" % host_id
+        elif host_id is None:
+                print "Host ID missing....Let me fix that for you..."
+                hostname = raw_input("Hostname [WindowsBox]: ")
+                if not hostname:
+                        hostname = 'WindowsBox'
+                print "Inserting Host %s (%s) " % (win_ip,hostname)
+
+                try:
+                        (result, host_id) = create_host([win_ip], sensor_id, hostname)
+                        if result:
+                                print "Success. %s added/updated" % host_id
+                        else:
+                                print "Error inserting host: %s" % host_id
+                                exit(-1)
+                except Exception as e:
+                        print "Error Inserting. Message: %s" % str(e)
+                        exit(-1)
+        else:
+                print "Host Present(%s)" % host_id
+        print "Credentials please...."
+        win_user, win_pass, win_domain = login()
+        job = ossec_win_deploy.delay(sensor_id, host_id, win_ip, win_user, win_pass, win_domain)
+        res = AsyncResult(job.task_id)
+        while not res.ready():
+                print "Waiting for install. Task status is (%s) state is (%s)" % (res.status, res.state)
+                sleep(2)
+        rt, msg = res.get()
+        if rt:
+                print "Success: %s" % msg
+        else:
+                print "Failure: %s" % msg
+
+if __name__ == "__main__":
+    main()
