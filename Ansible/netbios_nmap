@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
-#Ansible module to take the long way to netbios names
-# This runs an nmap scan, with script, grabs netbios names.  Fakes prads into accepting
+#Ansible module to take perform netbios resolution through NMAP
+#
+# This runs an nmap scan, with script, grabs netbios names.  Returns the output for use in other things
 # Put this file in: /usr/share/alienvault/api_core/share/ansible/netbios_nmap
-#Also make sure the network your searching is defined for the sensor, otherwise the server will reject the idm events
+# Also make sure the network your searching is defined for the sensor, otherwise the server will reject the idm events
 #
 # Usage and Examples
 # ansible [sensor] -s -m netbios_nmap -a "target=[net_range]"
@@ -71,40 +72,10 @@ def main():
 					#output += "Host: " + host + ' NetBIOS Name: ' + m.group('nb_name').title() + "\n"
 					hosts[host] = m.group('nb_name').title()
 	if len(hosts):
-	        #Set default of nothing
-	        prads_interface = ''
-	        #Find a prads interface
-	        (status, shell_output) = getstatusoutput("grep prads /etc/ossim/agent/config.cfg | head -1")
-	        if len(shell_output):
-	                #A little faith that what is found is split'able
-	                prads_interface = shell_output.split('=')[0].split('_')[1]
-	        if len(prads_interface):
-	                output += "Found Prads Interface on " + prads_interface + "\n"
-	                prads_path = '/etc/ossim/agent/plugins/prads_' + prads_interface + '.cfg.local'
-	                prads_log  = '/var/log/ossim/prads-' + prads_interface + '.log'
-                        if not os.path.exists(prads_path):
-                                #No local file to grab hostnames. Create one
-                                output += "Adding Prads Config\n"
-                                f = open(prads_path, 'w')
-                                f.write('[01 - Hostname]\nevent_type=idm-event\nregexp="(?P<asset_ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\|(?P<asset_name>.*)"\ninventory_source=2\nplugin_sid=2\nip={$asset_ip}\nhostname={$asset_name}\n')
-                                f.close()
-                                output += "Restarting Agent\n"
-                                (status, shell_output) = getstatusoutput("service ossim-agent restart")
-                                output += shell_output
-                                output += "\nWaiting\n"
-                                time.sleep(30)
-                        
-                        output += "Adding Hosts...\n"
-                        #Do this many times....
-                        for x in range(0,2):
-                                f = open(prads_log, 'a+')
-                                for h,n in hosts.iteritems():
-                                        f.write(h + '|' + n + "\n")
-                                f.close
-                                time.sleep(2)
-                else:
-                        output += 'Failed to find a prads interface. Exiting'
-			
+                output += 'Hosts Found.'
+        else:
+                output += 'No Hosts Found.'
+                
 	module.exit_json(changed=True, msg=output, hosts_found = hosts)
 # this is magic, see lib/ansible/module_common.py
 #<<INCLUDE_ANSIBLE_MODULE_COMMON>>
