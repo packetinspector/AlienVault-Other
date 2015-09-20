@@ -4,6 +4,7 @@
 # Put this file in: /usr/share/alienvault/api_core/share/ansible/ossec_win_install
 # Give the sensor IP and host IP of the machine you install on.  If host doesn't exist you will be prompted for hostname
 # Give creds when prompted
+# Example:  #alienvault-api ossec_win_install --sensor-ip=10.67.68.10 --asset-ip=192.168.200.250
 
 
 from db.methods.sensor import get_sensor_ip_from_sensor_id,get_sensor_id_from_sensor_ip,get_sensor_ctx_by_sensor_id
