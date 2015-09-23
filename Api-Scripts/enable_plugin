@@ -119,8 +119,15 @@ def main():
         plugin = options.plugin_file
         #remove .cfg if present..
         plugin = plugin.replace('.cfg','')
+        
         print "Checking sensor for plugin..."
-        plugins_avail = get_sensor_detector_plugins(sensor_id)
+        try:
+                plugins_avail = get_sensor_detector_plugins(sensor_id)
+        
+        except APIException as e:
+                print "Unable to query plugins: %s" % str(e)
+                exit(-1)
+                
         p2 = set((key) for key,value in plugins_avail.iteritems() if value.get('per_asset','') == True)
         if plugin not in p2:
                 print "\t\tPlugin (%s) not found on sensor. Exiting." % plugin
@@ -140,7 +147,12 @@ def main():
                      exit(-1)
                      
         print "Checking Existing Plugins for Asset..."
-        plugins = get_sensor_plugins_enabled_by_asset(sensor_id)
+        try:
+                plugins = get_sensor_plugins_enabled_by_asset(sensor_id)
+                
+        except APIException as e:
+                print "Unable to query plugins: %s" % str(e)
+                exit(-1)
         p = []
         #print plugins
         if plugins:
