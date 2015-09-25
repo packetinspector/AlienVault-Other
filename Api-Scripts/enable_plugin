@@ -21,6 +21,7 @@ from apimethods.utils import is_valid_ipv4
 from db.methods.host import get_host_id_by_ip_ctx
 from db.methods.host import create_host
 from apimethods.sensor.plugin import get_sensor_plugins_enabled_by_asset, set_sensor_plugins_enabled_by_asset, get_sensor_detector_plugins
+from apiexceptions import APIException
 
 
 def parse_args():
