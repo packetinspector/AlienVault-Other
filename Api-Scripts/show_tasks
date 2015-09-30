@@ -2,7 +2,18 @@
 # -*- coding: utf-8 -*-
 
 import json
+from datetime import datetime
+from time import strftime
 from celerymethods.utils import get_running_tasks
 
 status, tasks = get_running_tasks('127.0.0.1')
+#Lets prune a bit
+for k,v in tasks.iteritems():
+    for l in v:
+        l.pop("delivery_info", None)
+        l.pop("hostname", None)
+        l.pop("args", None)
+        l.pop("kwargs", None)
+        l.pop("acknowledged", None)
+        l['time_start'] = datetime.fromtimestamp(l['time_start']).strftime('%Y-%m-%d %H:%M:%S')
 print json.dumps(tasks, sort_keys=True, indent=4, separators=(',', ': '))
