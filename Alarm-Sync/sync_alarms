@@ -59,7 +59,7 @@ def main():
             success, msg = ansible_is_valid_response(child_ip, response)
             if not success:
             	print "Trouble reaching " + child_ip + " moving on..."
-		break
+		continue
             output = str(response['contacted'][child_ip]['stdout'])
             split = output.splitlines()
             if len(split) > 1:
