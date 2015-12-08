@@ -35,7 +35,7 @@ for server in server_list:
     success, child_alarms = get_child_alarms(server, delay=1, delta=3)
 
     if not success:
-        print("Can't retrieve remote alarms for server '%s'. Skiping" % str(server))
+        print("Can't retrieve remote alarms for server '%s'. Skipping" % str(server))
         continue
     missing_alarms = [event_id for event_id in child_alarms if event_id not in local_alarms]
 
