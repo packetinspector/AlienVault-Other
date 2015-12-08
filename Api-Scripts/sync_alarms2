@@ -43,6 +43,6 @@ for server in server_list:
         print("Found Missing Alarms...Resending..")
         success, message = resend_alarms(server, missing_alarms)
         if not success:
-            print("Can't resend remote alarams from server '%s': %s. Skiping" % (message, str(server)))
+            print("Can't resend remote alarams from server '%s': %s. Skipping" % (message, str(server)))
         else:
             print("Alarms Sent")
