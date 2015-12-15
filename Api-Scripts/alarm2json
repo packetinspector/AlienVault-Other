@@ -1,0 +1,334 @@
+#!/usr/share/python/alienvault-api-core/bin/python
+# -*- coding: utf-8 -*-
+# PacketInspector alarm2json v0.1
+'''
+This will take an alarm id and report the info back in JSON, defaults to stdout
+e.g.  # alienvault-api alarm2json -a "29482C89960511E5BAD9000C7EB509D6"
+{
+    "backlog_id": "29482c89-9605-11e5-bad9-000c7eb509d6",
+    "corr_engine_ctx": "076f2ef4-45f0-11e5-9592-000c29482c89",
+    "dst_ip": "0.0.0.0",
+    "dst_port": 58211,
+    "efr": 80,
+    "event_id": "960511e5-9be8-000c-2948-2c897eb4b238",
+    "in_file": 0,
+    "plugin_id": 1001,
+    "plugin_name": [
+        {
+            "ctx": "00000000-0000-0000-0000-000000000000",
+            "description": "AlienVault NIDS Rules",
+            "id": 1001,
+            "name": "AlienVault NIDS",
+            "product_type": 13,
+            "type": 1,
+            "vendor": "Sourcefire"
+        }
+    ],
+    "plugin_sid": 2100498,
+    "plugin_sid_name": [
+        {
+            "category_id": 1,
+            "name": "AlienVault NIDS: \"GPL ATTACK_RESPONSE id check returned root\"",
+            "plugin_ctx": "00000000-0000-0000-0000-000000000000",
+            "plugin_id": 1001,
+            "priority": 4,
+            "reliability": 10,
+            "sid": 2100498,
+            "subcategory_id": 11
+        }
+    ],
+    "protocol": 6,
+    "removable": 1,
+    "risk": 3,
+    "similar": "e4d40601531529eeda363b644becde0054cd871e",
+    "src_ip": "0.0.0.0",
+    "src_port": 80,
+    "stats": {
+        "dst": {
+            "country": {
+                "--": 1
+            },
+            "ip": {
+                "192.168.200.90": {
+                    "count": 1,
+                    "country": "--",
+                    "rep": 0,
+                    "uuid": "0x080de84b45f011e59592000c29482c89"
+                }
+            },
+            "port": {
+                "58211": 1
+            },
+            "rep": 0
+        },
+        "events": 1,
+        "src": {
+            "country": {
+                "DE": 1
+            },
+            "ip": {
+                "82.165.177.154": {
+                    "count": 1,
+                    "country": "DE",
+                    "rep": 0,
+                    "uuid": "NULL"
+                }
+            },
+            "port": {
+                "80": 1
+            },
+            "rep": 0
+        }
+    },
+    "status": "open",
+    "tags": [
+        {
+            "tags": [
+                "Analysis in Progress"
+            ]
+        }
+    ],
+    "timestamp": "2015-11-28T19:23:24"
+}
+
+
+Useful as a starting point to other integration. Use urllib and maybe POST it somewhere?
+File Location: /usr/share/python/alienvault-api-core/bin/alarm2json
+
+I could have done this in one query, but now I know SQLAlchemy...
+'''
+
+#python stuff
+from uuid import UUID
+import json
+from optparse import OptionParser, SUPPRESS_HELP
+#API
+from apimethods.utils import get_bytes_from_uuid, get_uuid_string_from_bytes
+#SQL
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy import Column, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.mysql import BIGINT, BINARY, BIT, BLOB, BOOLEAN, CHAR, \
+    DATE, DATETIME, DECIMAL, DECIMAL, DOUBLE, ENUM, FLOAT, INTEGER, LONGBLOB, \
+    LONGTEXT, MEDIUMBLOB, MEDIUMINT, MEDIUMTEXT, NCHAR, NUMERIC, NVARCHAR, \
+    REAL, SET, SMALLINT, TEXT, TIME, TIMESTAMP, TINYBLOB, TINYINT, TINYTEXT, \
+    VARBINARY, VARCHAR, YEAR
+#from db.models.alienvault_siem import Acid_Event
+import db
+
+
+#Create my own alarm classes with different serialization and relations...
+Base = declarative_base(bind=db.get_engine(database='alienvault'))
+
+
+class Tag (Base):
+    '''
+    Tag class.
+    Mapped to alienvault.tag.
+    '''
+    __tablename__ = 'tag'
+    __table_args__ = {'mysql_charset': 'utf8'}
+    __slots__ = ['id', 'ctx', 'name', 'type', 'vclass']
+
+    id = Column(BINARY(16), ForeignKey('component_tags.id_tag'), primary_key=True)
+    ctx = Column(BINARY(16))
+    name = Column(VARCHAR(128))
+    type = Column(VARCHAR(32))
+    vclass = Column('class', VARCHAR(32))
+
+    @property
+    def to_json(self):
+        return {'id': str(UUID(bytes=self.id)),
+                'ctx': str(UUID(bytes=self.ctx)),
+                'name': str(self.name),
+                'type': str(self.type),
+                'vclass': str(self.vclass)}
+
+
+class ComponentTags (Base):
+    '''
+    ComponentTags class.
+    Mapped to alienvault.component_tags.
+    '''
+    __tablename__ = 'component_tags'
+    __table_args__ = {'mysql_charset': 'utf8'}
+
+    id_component = Column(BINARY(16), ForeignKey('alarm.backlog_id'), primary_key=True)
+    id_tag = Column(BINARY(16), primary_key=True)
+    name = relationship('Tag', foreign_keys="Tag.id")
+
+
+    @property
+    def to_json(self):
+        return { 'tags': [str(item.name) for item in self.name] }
+
+
+class Plugin_Sid (Base):
+    __tablename__ = 'plugin_sid'
+    plugin_ctx = Column('plugin_ctx', BINARY(16), ForeignKey('plugin_sid_changes.plugin_ctx'), primary_key=True)
+    name = Column('name', VARCHAR(512), primary_key=False)
+    class_id = Column('class_id', INTEGER(11), primary_key=False)
+    priority = Column('priority', INTEGER(11), primary_key=False)
+    subcategory_id = Column('subcategory_id', INTEGER, ForeignKey('subcategory.id'), primary_key=False)
+    reliability = Column('reliability', INTEGER(11), primary_key=False)
+    sid = Column('sid', INTEGER, ForeignKey('alarm.plugin_sid'), primary_key=True)
+    plugin_id = Column('plugin_id', INTEGER, ForeignKey('alarm.plugin_id'), primary_key=True)
+    category_id = Column('category_id', INTEGER, ForeignKey('category.id'), primary_key=False)
+    aro = Column('aro', DECIMAL(11, 4), primary_key=False)
+ 
+    @property
+    def to_json(self):
+        return {
+            'plugin_ctx': get_uuid_string_from_bytes(self.plugin_ctx),
+            'name': self.name,
+            'priority': self.priority,
+            'subcategory_id': self.subcategory_id,
+            'reliability': self.reliability,
+            'sid': self.sid,
+            'plugin_id': self.plugin_id,
+            'category_id': self.category_id,
+        }
+
+
+class Plugin (Base):
+    __tablename__ = 'plugin'
+    product_type = Column('product_type', INTEGER(11), ForeignKey('product_type.id'), primary_key=False)
+    description = Column('description', TEXT, primary_key=False)
+    ctx = Column('ctx', BINARY(16), ForeignKey('acl_entities.id'), primary_key=True)
+    vendor = Column('vendor', TEXT, primary_key=False)
+    type = Column('type', SMALLINT(6), primary_key=False)
+    id = Column('id', INTEGER, ForeignKey('alarm.plugin_id'), primary_key=True)
+    name = Column('name', VARCHAR(100), primary_key=False)
+
+    @property
+    def to_json(self):
+        return {
+            'product_type': self.product_type,
+            'description': self.description,
+            'ctx': get_uuid_string_from_bytes(self.ctx),
+            'vendor': self.vendor,
+            'type': self.type,
+            'id': self.id,
+            'name': self.name
+        }
+
+
+class Alarm (Base):
+    '''
+    Alarm class.
+    Mapped to alienvault.alarm.
+    '''
+    __tablename__ = 'alarm'
+    __table_args__ = {'mysql_charset': 'utf8'}
+
+    backlog_id = Column(BINARY(16), ForeignKey('backlog.id'), primary_key=True)
+    event_id = Column(BINARY(16), ForeignKey('event.id'))
+    corr_engine_ctx = Column(BINARY(16))
+    timestamp = Column(TIMESTAMP(timezone=False))
+    status = Column(ENUM('open', 'closed'))
+    plugin_id = Column(INTEGER(11))
+    plugin_sid = Column(INTEGER(11))
+    protocol = Column(INTEGER(11))
+    src_ip = Column(VARBINARY(16))
+    dst_ip = Column(VARBINARY(16))
+    src_port = Column(INTEGER(11))
+    dst_port = Column(INTEGER(11))
+    risk = Column(INTEGER(11))
+    efr = Column(INTEGER(11))
+    similar = Column(VARCHAR(40))
+    removable = Column(INTEGER(11))
+    in_file = Column(INTEGER(11))
+    stats = Column(TEXT)
+    tags = relationship('ComponentTags', foreign_keys="ComponentTags.id_component")
+    plugin_name = relationship('Plugin', foreign_keys="Plugin.id")
+    #plugin_sid_name = relationship('Plugin_Sid', foreign_keys="Plugin_Sid.sid, Plugin_Sid.plugin_id")
+    plugin_sid_name = relationship('Plugin_Sid', primaryjoin="and_(Alarm.plugin_id == Plugin_Sid.plugin_id, Alarm.plugin_sid == Plugin_Sid.sid)", lazy='select')
+    #alarm_ctx = relationship('AlarmCtxs', primaryjoin=backlog_id == AlarmCtxs.id_alarm, lazy='joined', cascade='all')
+    #alarm_hosts = relationship('AlarmHosts', primaryjoin=backlog_id == AlarmHosts.id_alarm, lazy='joined', cascade='all')
+    #alarm_nets = relationship('AlarmNets', primaryjoin=backlog_id == AlarmNets.id_alarm, lazy='joined', cascade='all')
+
+    @property
+    def to_json(self):
+        try:
+            if len(self.src_ip) > 4:
+                src_ip = socket.inet_ntop(socket.AF_INET6, self.src_ip)
+            else:
+                src_ip = socket.inet_ntop(socket.AF_INET, self.src_ip)
+        except:
+            src_ip = '0.0.0.0'
+
+        try:
+            if len(self.dst_ip) > 4:
+                dst_ip = socket.inet_ntop(socket.AF_INET6, self.dst_ip)
+            else:
+                dst_ip = socket.inet_ntop(socket.AF_INET, self.dst_ip)
+        except:
+            dst_ip = '0.0.0.0'
+
+        return {'backlog_id': str(UUID(bytes=self.backlog_id)),
+                'event_id': str(UUID(bytes=self.event_id)),
+                'corr_engine_ctx': str(UUID(bytes=self.corr_engine_ctx)),
+                'timestamp': self.timestamp.isoformat(),
+                'status': self.status,
+                'plugin_id': self.plugin_id,
+                'plugin_name': [item.to_json for item in self.plugin_name],
+                'plugin_sid': self.plugin_sid,
+                'plugin_sid_name': [item.to_json for item in self.plugin_sid_name],
+                'protocol': self.protocol,
+                'src_ip': src_ip,
+                'dst_ip': dst_ip,
+                'src_port': self.src_port,
+                'dst_port': self.dst_port,
+                'risk': self.risk,
+                'efr': self.efr,
+                'similar': self.similar,
+                'removable': self.removable,
+                'in_file': self.in_file,
+                'stats': json.loads(self.stats.decode('string_escape')),
+                'tags': [item.to_json for item in self.tags]}
+                #'alarm_hosts': [item.to_json for item in self.alarm_hosts],
+                #'alarm_nets': [item.to_json for item in self.alarm_nets]}
+
+def parse_args():
+    usage = "alienvault-api alarm2json --alarm-id [alarm_id]"
+    parser = OptionParser(usage=usage)
+
+    parser.add_option("-a", "--alarm-id", dest="alarm_id", type="string", default=None,
+                      help="Alarm ID")
+
+    (options, args) = parser.parse_args()
+
+    if not options.alarm_id:
+        print "Alarm ID required"
+        print "Usage: %s" % usage
+        exit(-1)
+
+    return (options, args)
+   
+def main():
+    (options, args) = parse_args()
+    try:
+        alarm_uuid = get_bytes_from_uuid(options.alarm_id)
+    except:
+        print "Invalid Alarm ID"
+        exit(-1)
+
+    try:
+        alarm = db.session.query(Alarm).filter(Alarm.backlog_id == alarm_uuid).one()
+
+    except NoResultFound:
+        print '{"error": "No Alarm Found"}'
+        exit(-1)
+
+    except MultipleResultsFound:
+        print '{"error": "Multiple Alarms Found"}'
+        exit(-1)
+
+    print json.dumps(alarm.to_json, sort_keys=True, indent=4, separators=(',', ': '))
+
+    exit()
+
+if __name__ == "__main__":
+    main()
