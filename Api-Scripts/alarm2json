@@ -95,6 +95,9 @@ e.g.  # alienvault-api alarm2json -a "29482C89960511E5BAD9000C7EB509D6"
 Useful as a starting point to other integration. Use urllib and maybe POST it somewhere?
 File Location: /usr/share/python/alienvault-api-core/bin/alarm2json
 
+If you want to use this in an action script I suggest the following invocation for maximum reliability:
+                alienvault-api alarm2json -a 'BACKLOG_ID' -e 'EVENT_ID' -w
+
 I could have done this in one query, but now I know SQLAlchemy...
 '''
 
@@ -327,7 +330,7 @@ def main():
         print "Invalid Alarm ID"
         exit(-1)
 
-    #print "alarm_id passed: %s event_id passed: %s" % (options.alarm_id, options.event_id)
+    print "alarm_id passed: %s event_id passed: %s" % (options.alarm_id, options.event_id)
 
     try:
         alarm = db.session.query(Alarm).filter(Alarm.backlog_id == alarm_uuid).one()
