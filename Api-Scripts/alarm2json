@@ -330,7 +330,7 @@ def main():
         print "Invalid Alarm ID"
         exit(-1)
 
-    print "alarm_id passed: %s event_id passed: %s" % (options.alarm_id, options.event_id)
+    #print "alarm_id passed: %s event_id passed: %s" % (options.alarm_id, options.event_id)
 
     try:
         alarm = db.session.query(Alarm).filter(Alarm.backlog_id == alarm_uuid).one()
