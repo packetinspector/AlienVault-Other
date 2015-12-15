@@ -102,6 +102,7 @@ I could have done this in one query, but now I know SQLAlchemy...
 from uuid import UUID
 import json
 from optparse import OptionParser, SUPPRESS_HELP
+from time import sleep
 #API
 from apimethods.utils import get_bytes_from_uuid, get_uuid_string_from_bytes
 #SQL
@@ -298,6 +299,12 @@ def parse_args():
     parser.add_option("-a", "--alarm-id", dest="alarm_id", type="string", default=None,
                       help="Alarm ID")
 
+    parser.add_option("-e", "--event-id", dest="event_id", type="string", default=None,
+                      help="Event ID")
+
+    parser.add_option("-w", "--wait", dest="wait", action="store_true", default=False,
+                        help="Wait before looking up alarm")
+
     (options, args) = parser.parse_args()
 
     if not options.alarm_id:
@@ -309,18 +316,39 @@ def parse_args():
    
 def main():
     (options, args) = parse_args()
+
+    if options.wait:
+        #Using this may help when using action scripts
+        sleep(3)
+
     try:
-        alarm_uuid = get_bytes_from_uuid(options.alarm_id)
+        alarm_uuid = UUID(options.alarm_id).bytes
     except:
         print "Invalid Alarm ID"
         exit(-1)
+
+    #print "alarm_id passed: %s event_id passed: %s" % (options.alarm_id, options.event_id)
 
     try:
         alarm = db.session.query(Alarm).filter(Alarm.backlog_id == alarm_uuid).one()
 
     except NoResultFound:
-        print '{"error": "No Alarm Found"}'
-        exit(-1)
+        if options.event_id:
+            try:
+                event_uuid = UUID(options.event_id).bytes
+            except:
+                print "Invalid EventID"
+                exit(-1)
+            try:
+                #print "Lookup: %s" % str(event_uuid)
+                alarm = db.session.query(Alarm).filter(Alarm.event_id == event_uuid).one()
+
+            except NoResultFound:
+                print '{"error": "No Event Found Either"}'
+                exit(-1)
+        else:
+            print '{"error": "No Alarm Found"}'
+            exit(-1)
 
     except MultipleResultsFound:
         print '{"error": "Multiple Alarms Found"}'
