@@ -1,0 +1,101 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#This API Script will insert random hosts at X/s for given CIDR
+
+
+from db.methods.sensor import get_sensor_id_from_sensor_ip,get_sensor_ctx_by_sensor_id
+from apimethods.data.idmconn import IDMConnection
+from apimethods.data.event import HostInfoEvent
+from optparse import OptionParser, SUPPRESS_HELP
+from apimethods.utils import is_valid_ipv4, is_valid_uuid
+from netaddr import *
+from time import sleep
+import random
+import re
+
+#Host insert per second
+HPS = 75
+
+def get_words():
+    #Some words. You may need to install this:  apt-get install wamerican
+    wf = '/usr/share/dict/words'
+    return filter(clean_words, open(wf).read().splitlines())
+    
+def clean_words(dirty):
+    return re.match('^[a-zA-Z]*$', dirty)
+
+
+def parse_args():
+    usage = "alienvault-api random_hosts --sensor-ip=[ip.address] [ --cidr=[ip_range] ]"
+    parser = OptionParser(usage=usage)
+
+    parser.add_option("-i", "--sensor-ip", dest="sensor_ip", type="string", default=None,
+                  help="Sensor Address")
+
+    parser.add_option("-c", "--cidr", dest="cidr", type="string", default='10.0.0.0/16',
+                  help="Network Range")
+
+    (options, args) = parser.parse_args()
+
+    if not options.sensor_ip:
+            print "Sensor IP Required"
+            print "Usage: %s" % usage
+            exit(-1)
+
+    if options.sensor_ip and not is_valid_ipv4(options.sensor_ip):
+            print "Bad format: sensor_ip"
+            print "Usage: %s" % usage
+            exit(-1)
+
+    return (options, args)
+
+
+def main():
+    (options, args) = parse_args()
+    #Grab sensor IP from options
+    sensor_ip = options.sensor_ip
+    #Scan Range
+    cidr = options.cidr
+    #Lookup sensor ID from IP
+    rt, sensor_id = get_sensor_id_from_sensor_ip(sensor_ip)
+    if not rt:
+            print "Sensor Lookup Failed: %s" % sensor_id
+            exit(-1)
+    print "Found sensor with id: %s" % sensor_id                
+    #Grab context
+    rt, ctx_id = get_sensor_ctx_by_sensor_id(sensor_id)
+    print "Loading words.."
+    words = get_words()
+    print "Connecting to IDM"
+
+    conn = IDMConnection(sensor_id=sensor_id)
+    if conn.connect():
+        i = 0                
+        for ip in IPSet([cidr]):
+            i = i + 1
+            n = random.choice(words)
+            words.remove(n)
+            print "Inserting Host %s (%s) " % (ip,n)
+            hie = HostInfoEvent()
+            hie["ip"] = ip
+            hie["hostname"] = n
+            hie["ctx"] = ctx_id
+
+            try:
+                conn.send(str(hie))
+                hie = None
+
+            except Exception as e:
+                print "IDM connector, cannot send the event {0}".format(str(e))
+
+            if i % HPS == 0:
+                sleep(1)
+        print "%s random hosts inserted into network: %s" % (i,cidr)
+    else:
+        print "Connection Failed."
+
+    conn.close()
+
+
+if __name__ == "__main__":
+    main()
