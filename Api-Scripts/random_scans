@@ -1,0 +1,199 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# This thing makes Fake Scans, for random reasons
+# Not sure whats up with the date reading in, i think the validation on the import_nbe script 
+# prevents it from ever being parsed.  Tried some combos
+'''
+Defaults to 10.0.0.0/16, you might want to supply a smaller one with -c
+
+#        alienvault-api random_scans -i 192.168.200.90
+Found sensor with id: 076b4035-45f0-11e5-9592-000c29482c89
+Using context id: 076f20a745f011e59592000c29482c89
+Attempting Import of Super Fake Scan(TM)....Be Patient....
+Ip: 10.0.121.154, randomness
+Ip: 10.0.155.70, thisthat
+Ip: 10.0.209.33, entropy
+Ip: 10.0.65.133, disrupt
+Ip: 10.0.97.92, things
+Report ID: 33
+'''
+
+from db.methods.sensor import get_sensor_id_from_sensor_ip,get_sensor_ctx_by_sensor_id
+from optparse import OptionParser, SUPPRESS_HELP
+from apimethods.utils import is_valid_ipv4, is_valid_uuid
+from sqlalchemy.orm import sessionmaker, scoped_session
+from netaddr import *
+import random
+import string
+import socket
+import datetime
+import db
+import base64
+import uuid
+from ansiblemethods.ansiblemanager import Ansible
+from ansiblemethods.helper import ansible_is_valid_response
+
+#Dont change this
+date_format = "%a %b %d %H:%M:%S %Y"
+#Number of Hosts to use
+num_hosts = 5
+num_vulns_host = 10
+temp_file = '/tmp/fakescan.nbe'
+
+#Not much to mess with below...
+
+#Template strings for NBE
+nbe_header = string.Template("timestamps|||scan_start|$date|")
+nbe_footer = string.Template("timestamps|fakedomain|127.0.0.1|scan_end|$date|INFO|")
+nbe_host_start = string.Template("timestamps||$ip|host_start|$date|")
+nbe_host_end = string.Template("timestamps||$ip|host_end|$date||")
+nbe_result = string.Template("results|$domain|$ip|$service ($port/$proto)|$oid|$risk|$summary")
+nbe_risks = ["NOTE", "INFO", "Security Note", "LOW", "Security Warning", "MEDIUM", "HIGH", "Security Hole", "REPORT"]
+nbe_proto = ["tcp", "udp"]
+
+def parse_args():
+    usage = "alienvault-api random_scans --sensor-ip=[ip.address] [ --cidr=[ip_range] ]"
+    parser = OptionParser(usage=usage)
+
+    parser.add_option("-i", "--sensor-ip", dest="sensor_ip", type="string", default=None,
+                  help="Sensor Address")
+
+    parser.add_option("-c", "--cidr", dest="cidr", type="string", default='10.0.0.0/16',
+                  help="Network Range [10.0.0.0/16]")
+
+    (options, args) = parser.parse_args()
+
+    if not options.sensor_ip:
+            print "Sensor IP Required"
+            print "Usage: %s" % usage
+            exit(-1)
+
+    if options.sensor_ip and not is_valid_ipv4(options.sensor_ip):
+            print "Bad format: sensor_ip"
+            print "Usage: %s" % usage
+            exit(-1)
+
+    return (options, args)
+
+
+def random_oid():
+    query = "select oid from vuln_nessus_plugins ORDER BY rand() LIMIT 1"
+    eng = db.get_engine()
+    ss = scoped_session(sessionmaker(bind=eng))
+    s = ss()
+    data = s.execute(query)
+    for row in data:
+        return row[0]
+
+
+def random_service():
+    while True:
+        proto = random.choice(nbe_proto)
+        port = random.randint(20, 8000)
+        try:
+                name = socket.getservbyport(port, proto)
+                return (port, proto, name)
+        except:
+            pass
+
+
+def random_ip(ips):
+    return random.choice(ips)
+
+
+def generate_nbe_host(ip):
+    port, proto, name = random_service()
+    risk = " cvss base score : %s.0" % random.randint(0,10)
+    values = {'domain': 'fakedomain',
+              'ip': ip,
+              'service': name,
+              'port': port,
+              'proto': proto,
+              'oid': random_oid(),
+              'risk': random.choice(nbe_risks),
+              'summary': "Totally Fake Data" + risk}
+
+    return nbe_result.substitute(values)
+
+
+def main():
+    (options, args) = parse_args()
+    #Grab sensor IP from options
+    sensor_ip = options.sensor_ip
+    #Scan Range
+    cidr = options.cidr
+    #Lookup sensor ID from IP
+    rt, sensor_id = get_sensor_id_from_sensor_ip(sensor_ip)
+    if not rt:
+            print "Sensor Lookup Failed: %s" % sensor_id
+            exit(-1)
+    print "Found sensor with id: %s" % sensor_id              
+    #Grab context
+    rt, ctx_id = get_sensor_ctx_by_sensor_id(sensor_id)
+    
+    #Make IP list
+    try:
+        ips = IPNetwork(cidr)
+    except Exception as e:
+        print "Bad CIDR option: %s" % str(e)
+        exit(-1)
+    #Open fake nbe file
+    try:
+        fake_nbe = open(temp_file, 'w')
+        fake_nbe.truncate()
+    except:
+        print "Can not open temp file for writing"
+        exit(-1)
+
+    #Make a fake datetime for scan
+    now = datetime.datetime.now()
+    #Make datetime units for later use
+    random_days = datetime.timedelta(days=random.randint(20,90))
+    one_hour = datetime.timedelta(hours=1)
+    one_second = datetime.timedelta(seconds=1)
+
+    start_scan = now - random_days
+    
+    #Start making fake NBE file here
+
+    fake_nbe.write(nbe_header.substitute({ 'date' : start_scan.strftime(date_format) }) + "\n")
+
+    host_start = start_scan + one_second
+    for h in range(0,num_hosts):
+
+        host_start = host_start + one_second
+        ip = random_ip(ips)
+        head_v = { 'date' : host_start.strftime(date_format) , 'ip': ip }
+        fake_nbe.write(nbe_host_start.substitute(head_v) + "\n")
+
+        for v in range(0,num_vulns_host):
+            host_start = host_start + one_second
+            fake_nbe.write(generate_nbe_host(ip) + "\n")
+
+        head_f = { 'date' : host_start.strftime(date_format) , 'ip': ip }
+        fake_nbe.write(nbe_host_end.substitute(head_f) + "\n")
+
+    fake_nbe.write(nbe_footer.substitute({ 'date' : host_start.strftime(date_format) }) + "\n")
+    fake_nbe.close()
+
+    #Done making NBE, let's try to import
+    sname = base64.b64encode("Fake Scan;admin")
+    c = uuid.UUID(ctx_id)
+    print "Using context id: %s" % c.hex
+    print "Attempting Import of Super Fake Scan(TM)....Be Patient...."
+
+    #This wants to be run as root, ansible easy way...
+    ansible = Ansible()
+    cmd = "/usr/share/ossim/scripts/vulnmeter/import_nbe.pl %s %s %s %s %s %s" % (temp_file, sname, str(1), str(-4), c.hex, str(0))
+
+    response = ansible.run_module(host_list=['127.0.0.1'],
+                                  module="command",
+                                  args=cmd)
+    success, msg = ansible_is_valid_response('127.0.0.1', response)
+    print str(response['contacted']['127.0.0.1']['stdout'])
+    exit(0)
+
+
+
+if __name__ == "__main__":
+    main()
