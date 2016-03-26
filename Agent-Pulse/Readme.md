@@ -18,3 +18,14 @@ Restarting ossim-server
 Customer450:~/github/AlienVault-Other/Agent-Pulse#
 (choose asset and enable plugin)
 ```
+
+####What is this?
+This plugin will take a value and check its existence in the Pulse database
+If it is found it will return a special SID
+No idea how this scales but I have tested it at 100EPS
+With the limitations of custom plugins and speed you should overlay this on another datasource
+The sample plugin has a basic regex as an example
+This plugin will not currently tell you which pulse is matched, just that the log entry is a match
+It is possible to return the pulse id, but you'd need to run two functions
+- Why this method?
+Matching by SID is much faster.  I could output the pulse_id in a userdata field, but then you'd need a correlation rule or similar to find these events. 
