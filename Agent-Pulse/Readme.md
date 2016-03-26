@@ -37,3 +37,10 @@ Matching by SID is fast.  I could output the pulse_id in a userdata field, but t
 - Run proxy logs to match hostnames
 - Run access logs to match bad actors
 - Run endpoint scan logs through
+
+####Tips
+- Enter or parse the datasource type info into a userdata field.  Helps with reporting and SIEM view.
+
+####Potential Enhancements
+- Add Function to return pulseid
+- Output pulseid into a complete url for otx.alienvault, put in userdata field.  Now you can lookup the pulse...
