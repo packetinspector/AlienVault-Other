@@ -23,15 +23,14 @@ Customer450:~/github/AlienVault-Other/Agent-Pulse#
 - This plugin will take a value(Hash, IP, Domain) from a log file and check its existence in the Pulse database
 - If it is found it will return a special SID
 - No idea how this scales but I have tested it at 100EPS
-- With the limitations of custom plugin functions and speed you should overlay this on another datasource
--- e.g. If you are already parsing logs with an existing, customize this plugin to extract value and enable both 
+- With the limitations of custom plugin functions and speed you should overlay this on another datasource: i.e. If you are already parsing logs with an existing plugin, customize this plugin to extract the value and enable both 
 - The sample plugin has a basic regex as an example
-- This plugin will not currently tell you which pulse is matched, just that the log entry is a match
-- It would be possible to return the pulse id, but you'd need to run two functions
+- This plugin will not currently tell you which pulse is matched, just that the log entry is a match (see Future)
+- It would be possible to return the pulse id, but you'd need to run two functions and two lookups
 
 ####Why this method?
 
-Matching by SID is fast.  I could output the pulse_id in a userdata field, but then you'd need a correlation rule or similar to find these events. 
+Matching by SID is fast.  I could output the pulse_id in a userdata field, but then you'd need a correlation rule or similar to find these events and you'd fill the DB with non-matches.
 
 ####Sample Use Cases
 - Run Filehashes from other solutions(e.g. Cylance) through for double confirmation
@@ -45,3 +44,6 @@ Matching by SID is fast.  I could output the pulse_id in a userdata field, but t
 ####Potential Enhancements
 - Add Function to return pulseid
 - Output pulseid into a complete url for otx.alienvault, put in userdata field.  Now you can lookup the pulse...
+
+####Why?
+Just wanted to know if it was possible. Seems that it is....
