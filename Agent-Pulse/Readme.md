@@ -20,10 +20,11 @@ Customer450:~/github/AlienVault-Other/Agent-Pulse#
 ```
 
 ####What is this?
-- This plugin will take a value and check its existence in the Pulse database
+- This plugin will take a value(Hash, IP, Domain) from a log file and check its existence in the Pulse database
 - If it is found it will return a special SID
 - No idea how this scales but I have tested it at 100EPS
 - With the limitations of custom plugin functions and speed you should overlay this on another datasource
+-- e.g. If you are already parsing logs with an existing, customize this plugin to extract value and enable both 
 - The sample plugin has a basic regex as an example
 - This plugin will not currently tell you which pulse is matched, just that the log entry is a match
 - It would be possible to return the pulse id, but you'd need to run two functions
