@@ -31,3 +31,9 @@ Customer450:~/github/AlienVault-Other/Agent-Pulse#
 ####Why this method?
 
 Matching by SID is fast.  I could output the pulse_id in a userdata field, but then you'd need a correlation rule or similar to find these events. 
+
+####Sample Use Cases
+- Run Filehashes from other solutions(e.g. Cylance) through for double confirmation
+- Run proxy logs to match hostnames
+- Run access logs to match bad actors
+- Run endpoint scan logs through
